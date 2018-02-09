@@ -1,0 +1,32 @@
+{
+  "name": "banner",
+  "version": "0.1.0",
+  "description": "",
+  "scripts": {
+    "build": "./node_modules/webpack/bin/webpack.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "watch": "./node_modules/webpack/bin/webpack.js --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/augustuswm/banner.git"
+  },
+  "author": "Augustus Mayo",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/augustuswm/banner/issues"
+  },
+  "homepage": "https://github.com/augustuswm/banner#readme",
+  "devDependencies": {
+    "axios": "^0.17.1",
+    "babel-core": "^6.26.0",
+    "babel-loader": "^7.1.2",
+    "babel-preset-env": "^1.6.1",
+    "babel-preset-react": "^6.24.1",
+    "material-ui": "^1.0.0-beta.32",
+    "material-ui-icons": "^1.0.0-beta.17",
+    "react": "^16.2.0",
+    "react-dom": "^16.2.0",
+    "webpack": "^3.10.0"
+  }
+}

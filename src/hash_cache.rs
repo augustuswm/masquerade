@@ -92,6 +92,10 @@ impl<T: Clone> HashCache<T> {
         self.writer()
             .map(|mut writer| writer.remove(key.into()).map(|(v, _)| v))
     }
+
+    pub fn clear(&self) -> CacheResult<()> {
+        self.writer().map(|mut writer| writer.clear())
+    }
 }
 
 #[cfg(test)]

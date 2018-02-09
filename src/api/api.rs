@@ -1,20 +1,22 @@
+use iron::IronError;
+use iron::status as RespStatus;
 use router::Router;
 
-use api::app;
-use api::env;
+use api::error::APIError;
 use api::flag;
 use api::status;
+use error::BannerError;
 
 macro_rules! rest {
-	( $router:expr, $handler:expr, $base:expr, $path:expr, $key:expr ) => {
+	( $router:expr, $handler:ident, $base:expr, $path:expr, $key:expr ) => {
 		{
 			let base_path = format!("{}/{}/", $base, $path);
 			let indv_path = format!("{}/{}/:{}/", $base, $path, $key);
 
-			$router.post(base_path, $handler, format!("create_{}", $path));
-		    $router.get(indv_path.as_str(), $handler, format!("get_{}", $path));
-		    $router.post(indv_path.as_str(), $handler, format!("update_{}", $path));
-		    $router.delete(indv_path.as_str(), $handler, format!("delete_{}", $path));
+			$router.post(base_path, $handler::create, format!("create_{}", $path));
+		    $router.get(indv_path.as_str(), $handler::read, format!("read_{}", $path));
+		    $router.post(indv_path.as_str(), $handler::update, format!("update_{}", $path));
+		    $router.delete(indv_path.as_str(), $handler::delete, format!("delete_{}", $path));
 		}
 	};
 }
@@ -25,15 +27,29 @@ pub fn v1() -> Router {
     // Health check
     router.get("/status/", status::handler, "status");
 
-    // App handling
-    rest!(router, app::handler, "", "app", "app");
-
-    // Env handling
-    rest!(router, env::handler, "/app/:app", "env", "env");
-
     // Flag handling
-    rest!(router, flag::handler, "/app/:app/env/:env", "flag", "key");
-    router.get("/app/:app/:env/flags/", flag::all_handler, "all_flags");
+    rest!(router, flag, "/:app/:env", "flag", "key");
+    router.get("/:app/:env/flags/", flag::all, "all_flags");
 
     router
+}
+
+impl From<BannerError> for IronError {
+    fn from(b_err: BannerError) -> IronError {
+        IronError::new(b_err, (RespStatus::InternalServerError, ""))
+    }
+}
+
+impl From<APIError> for IronError {
+    fn from(a_err: APIError) -> IronError {
+        let status = a_err.status();
+        let msg = a_err.to_string();
+        IronError::new(BannerError::APIError(a_err), (status, msg))
+    }
+}
+
+impl From<APIError> for BannerError {
+    fn from(a_err: APIError) -> BannerError {
+        BannerError::APIError(a_err)
+    }
 }

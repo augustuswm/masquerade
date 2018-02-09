@@ -1,7 +1,9 @@
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Flag {
     key: String,
+    #[serde(skip_serializing)]
     app: String,
+    #[serde(skip_serializing)]
     env: String,
     value: FlagValue,
     version: u64,
@@ -48,28 +50,13 @@ impl Flag {
         self.version == ver
     }
 
-    pub fn app(&self) -> &str {
-        self.app.as_str()
-    }
-
-    pub fn env(&self) -> &str {
-        self.env.as_str()
-    }
-
     pub fn key(&self) -> &str {
         self.key.as_str()
-    }
-
-    pub fn path(&self) -> String {
-        Flag::make_path(self.app(), self.env(), self.key())
-    }
-
-    pub fn make_path(app: &str, env: &str, key: &str) -> String {
-        [app, "::", env, "::", key].concat()
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum FlagValue {
     Bool(bool),
 }
@@ -80,27 +67,27 @@ mod tests {
 
     #[test]
     fn test_returns_some_if_enabled() {
-        let f = Flag::new("key-string", "", "", FlagValue::Bool(true), 1, true);
+        let f = Flag::new("key-string", "app", "env", FlagValue::Bool(true), 1, true);
         assert_eq!(f.eval(), Some(&FlagValue::Bool(true)));
     }
 
     #[test]
     fn test_returns_none_if_disabled() {
-        let f = Flag::new("key-string", "", "", FlagValue::Bool(true), 1, false);
+        let f = Flag::new("key-string", "app", "env", FlagValue::Bool(true), 1, false);
         assert_eq!(f.eval(), None);
     }
 
     #[test]
     fn test_returns_enabled_status() {
-        let f1 = Flag::new("key-string", "", "", FlagValue::Bool(true), 1, true);
-        let f2 = Flag::new("key-string", "", "", FlagValue::Bool(true), 1, false);
+        let f1 = Flag::new("key-string", "app", "env", FlagValue::Bool(true), 1, true);
+        let f2 = Flag::new("key-string", "app", "env", FlagValue::Bool(true), 1, false);
         assert_eq!(f1.is_enabled(), true);
         assert_eq!(f2.is_enabled(), false);
     }
 
     #[test]
     fn test_checks_version() {
-        let f = Flag::new("key-string", "", "", FlagValue::Bool(true), 1, true);
+        let f = Flag::new("key-string", "app", "env", FlagValue::Bool(true), 1, true);
         assert_eq!(f.is_ver(1), true);
         assert_eq!(f.is_ver(2), false);
     }

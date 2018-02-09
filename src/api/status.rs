@@ -4,15 +4,12 @@ use iron::status;
 use redis::Client;
 use serde_json;
 
-use api::backend::BackendReqExt;
-
 #[derive(Debug, Serialize, Deserialize)]
 struct Status {
     pub backend: bool,
 }
 
 pub fn handler(req: &mut Request) -> IronResult<Response> {
-    println!("{:?}", req.get_store());
     #[cfg(feature = "redis-backend")]
     let status = Status {
         backend: redis_health(),
