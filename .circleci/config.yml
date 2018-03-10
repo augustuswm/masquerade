@@ -1,6 +1,23 @@
 version: 2.0
 jobs:
-  build:
+  mem-test:
+    docker:
+      - image: clux/muslrust
+    steps:
+      - checkout
+      - run:
+          name: Test
+          command: cargo test --features mem-backend
+  mongo-test:
+    docker:
+      - image: clux/muslrust
+      - image: circleci/mongo
+    steps:
+      - checkout
+      - run:
+          name: Test
+          command: cargo test --features mongo-backend
+  redis-test:
     docker:
       - image: clux/muslrust
       - image: redis
@@ -17,3 +34,11 @@ jobs:
       - run:
           name: Test
           command: cargo test --features redis-backend
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - mem-test
+      - mongo-test
+      - redis-test
