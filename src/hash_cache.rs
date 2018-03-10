@@ -106,7 +106,7 @@ mod tests {
     fn test_write_then_read() {
         let cache: HashCache<Vec<u8>> = HashCache::new(Duration::new(5, 0));
         let val = vec![1, 2, 3];
-        cache.insert("3", &val);
-        assert_eq!(Ok(Some(val)), cache.get("3"));
+        let _ = cache.insert("3", &val);
+        assert_eq!(Some(val), cache.get("3").unwrap());
     }
 }

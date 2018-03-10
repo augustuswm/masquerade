@@ -5,8 +5,12 @@ version = "0.1.0"
 
 [dependencies]
 bodyparser = "0.8.0"
+bson = "0.11.1"
+env_logger = "0.5.3"
+hyper = "0.10"
 iron = "0.6.0"
 log = "0.4.1"
+logger = "0.4.0"
 mount = "0.4.0"
 persistent = "0.4.0"
 router = "0.6.0"
@@ -15,10 +19,32 @@ serde_derive = "1.0.27"
 serde_json = "1.0.9"
 staticfile = "0.5.0"
 
+[dependencies.mongo_driver]
+optional = true
+version = "0.12.0"
+
 [dependencies.redis]
 optional = true
 version = "0.8.0"
 
+[dependencies.rusoto_core]
+optional = true
+version = "0.31.0"
+
+[dependencies.rusoto_credential]
+optional = true
+version = "0.10.0"
+
+[dependencies.rusoto_dynamodb]
+optional = true
+version = "0.31.0"
+
 [features]
+dynamo-backend = [
+    "rusoto_core",
+    "rusoto_credential",
+    "rusoto_dynamodb",
+]
 mem-backend = []
+mongo-backend = ["mongo_driver"]
 redis-backend = ["redis"]

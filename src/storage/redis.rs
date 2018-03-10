@@ -1,13 +1,10 @@
-use redis::{cmd, Client, Commands, Connection, ErrorKind, FromRedisValue, RedisResult,
-            ToRedisArgs, Value as RedisValue};
-use serde_json;
+use redis::{cmd, Client, Commands, Connection, FromRedisValue, RedisResult, ToRedisArgs};
 
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::time::Duration;
 
 use error::BannerError;
-use flag::Flag;
 use hash_cache::HashCache;
 use store::Store;
 
@@ -49,7 +46,7 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
         U: Into<String>,
     {
         let client =
-            Client::open(url.into().as_str()).map_err(|_| BannerError::InvalidRedisConfig)?;
+            Client::open(url.into().as_ref()).map_err(|_| BannerError::InvalidRedisConfig)?;
 
         Ok(RedisStore::open_with_client(client, prefix, timeout))
     }
@@ -77,7 +74,7 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
     where
         S: Into<String>,
     {
-        prefix.map(|p| p.into()).unwrap_or("banner".into()) + "::features"
+        prefix.map(|p| p.into()).unwrap_or("banner".into()) + "$features"
     }
 
     fn conn(&self) -> RedisStoreResult<Connection> {
@@ -87,19 +84,25 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
             .map_err(BannerError::RedisFailure)
     }
 
-    fn full_path(&self, path: &str) -> String {
-        [self.key.as_str(), "::", path].concat()
+    fn full_path<P: AsRef<str>>(&self, path: &P) -> String {
+        [self.key.as_str(), "$", path.as_ref()].concat()
     }
 
-    fn full_key(&self, path: &str, key: &str) -> String {
-        [self.key.as_str(), "::", path, "::", key].concat()
+    fn full_key<P: AsRef<str>>(&self, path: &P, key: &str) -> String {
+        [self.key.as_str(), "$", path.as_ref(), "$", key].concat()
     }
 
-    fn get_raw(&self, path: &str, key: &str, conn: &Connection) -> Option<T> {
+    fn get_raw<P: AsRef<str>>(&self, path: &P, key: &str, conn: &Connection) -> Option<T> {
         conn.hget(self.full_path(path), key.to_string()).ok()
     }
 
-    fn put_raw(&self, path: &str, key: &str, item: &T, conn: &Connection) -> RedisStoreResult<()> {
+    fn put_raw<P: AsRef<str>>(
+        &self,
+        path: &P,
+        key: &str,
+        item: &T,
+        conn: &Connection,
+    ) -> RedisStoreResult<()> {
         // Manually serialize to redis storable value to allow for failure handling
         let item_ser = item.to_redis_args();
 
@@ -115,12 +118,21 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
         }
     }
 
-    fn delete_raw(&self, path: &str, key: &str, conn: &Connection) -> RedisStoreResult<()> {
+    fn delete_raw<P: AsRef<str>>(
+        &self,
+        path: &P,
+        key: &str,
+        conn: &Connection,
+    ) -> RedisStoreResult<()> {
         let res: RedisResult<u8> = conn.hdel(self.full_path(path), key.to_string());
         res.map(|_| ()).map_err(BannerError::RedisFailure)
     }
 
-    fn start<S: FromRedisValue>(&self, path: &str, conn: &Connection) -> RedisStoreResult<()> {
+    fn start<S: FromRedisValue, P: AsRef<str>>(
+        &self,
+        path: &P,
+        conn: &Connection,
+    ) -> RedisStoreResult<()> {
         let res: RedisResult<S> = cmd("WATCH").arg(self.full_path(path)).query(conn);
         res.map(|_| ()).map_err(BannerError::RedisFailure)
     }
@@ -131,14 +143,14 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
     }
 }
 
-impl<T> Store for RedisStore<T>
+impl<T, P> Store<P, T> for RedisStore<T>
 where
+    P: AsRef<str>,
     T: Clone + FromRedisValue + ToRedisArgs + Debug,
 {
-    type Item = T;
     type Error = BannerError;
 
-    fn get(&self, path: &str, key: &str) -> Result<Option<T>, BannerError> {
+    fn get(&self, path: &P, key: &str) -> Result<Option<T>, BannerError> {
         match self.cache.get(self.full_key(path, key).as_str()) {
             Ok(Some(item)) => Ok(Some(item)),
             _ => self.conn().map(|conn| {
@@ -153,7 +165,7 @@ where
         }
     }
 
-    fn get_all(&self, path: &str) -> Result<HashMap<String, T>, BannerError> {
+    fn get_all(&self, path: &P) -> Result<HashMap<String, T>, BannerError> {
         let r = self.all_cache
             .get(ALL_CACHE)
             .and_then(|map| map.ok_or(BannerError::AllCacheMissing))
@@ -170,10 +182,10 @@ where
         r
     }
 
-    fn delete(&self, path: &str, key: &str) -> Result<Option<T>, BannerError> {
+    fn delete(&self, path: &P, key: &str) -> Result<Option<T>, BannerError> {
         // Ignores cache lookup
         let conn = self.conn()?;
-        let _: () = self.start::<()>(path, &conn)?;
+        let _: () = self.start::<(), P>(path, &conn)?;
 
         let lookup = self.get(path, key);
         let store_res = self.delete_raw(path, key, &conn);
@@ -187,10 +199,10 @@ where
         })
     }
 
-    fn upsert(&self, path: &str, key: &str, item: &T) -> Result<Option<T>, BannerError> {
+    fn upsert(&self, path: &P, key: &str, item: &T) -> Result<Option<T>, BannerError> {
         // Ignores cache lookup
         let conn = self.conn()?;
-        let _: () = self.start::<()>(path, &conn)?;
+        let _: () = self.start::<(), P>(path, &conn)?;
 
         let lookup = self.get(path, key);
 
@@ -206,48 +218,6 @@ where
     }
 }
 
-impl FromRedisValue for Flag {
-    fn from_redis_value(v: &RedisValue) -> RedisResult<Flag> {
-        match *v {
-            RedisValue::Data(ref data) => {
-                let data = String::from_utf8(data.clone());
-
-                data.or_else(|_| Err((ErrorKind::TypeError, "Expected utf8 string").into()))
-                    .and_then(|ser| {
-                        serde_json::from_str(ser.as_str()).or_else(|_| {
-                            let err = (ErrorKind::TypeError, "Unable to deserialize json to Flag");
-                            Err(err.into())
-                        })
-                    })
-            }
-            ref x => {
-                let err = (
-                    ErrorKind::TypeError,
-                    "Recieved non-data type for deserializing",
-                );
-                Err(err.into())
-            }
-        }
-    }
-}
-
-impl<'a> ToRedisArgs for Flag {
-    fn to_redis_args(&self) -> Vec<Vec<u8>> {
-        let ser = serde_json::to_string(&self);
-
-        vec![
-            match ser {
-                Ok(json) => json.as_bytes().into(),
-
-                // Because this trait can not normally fail, but json serialization
-                // can fail, the failure cause is encoded as a special value that
-                // is checked by the store
-                Err(_) => "fail".to_string().as_bytes().into(),
-            },
-        ]
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use flag::*;
@@ -255,10 +225,14 @@ mod tests {
 
     use super::*;
 
-    const PATH: &'static str = "app::env";
+    const PATH: &'static str = "app$env";
 
     fn f<S: Into<String>>(key: S, enabled: bool) -> Flag {
-        Flag::new(key, "app", "env", FlagValue::Bool(true), 1, enabled)
+        Flag::new(key, FlagValue::Bool(true), 1, enabled)
+    }
+
+    fn path() -> FlagPath {
+        PATH.parse::<FlagPath>().unwrap()
     }
 
     fn dataset(p: &str, dur: u64) -> RedisStore<Flag> {
@@ -267,7 +241,7 @@ mod tests {
         let flags = vec![f("f1", false), f("f2", true)];
 
         for flag in flags.into_iter() {
-            store.upsert(PATH, flag.key(), &flag);
+            let _ = store.upsert(&path(), flag.key(), &flag);
         }
 
         store
@@ -277,9 +251,9 @@ mod tests {
     fn test_gets_items() {
         let data = dataset("get_items", 0);
 
-        assert_eq!(data.get(PATH, "f1").unwrap().unwrap(), f("f1", false));
-        assert_eq!(data.get(PATH, "f2").unwrap().unwrap(), f("f2", true));
-        assert!(data.get(PATH, "f3").unwrap().is_none());
+        assert_eq!(data.get(&path(), "f1").unwrap().unwrap(), f("f1", false));
+        assert_eq!(data.get(&path(), "f2").unwrap().unwrap(), f("f2", true));
+        assert!(data.get(&path(), "f3").unwrap().is_none());
     }
 
     #[test]
@@ -288,7 +262,7 @@ mod tests {
         test_map.insert("f1", f("f1", false));
         test_map.insert("f2", f("f2", true));
 
-        let res = dataset("all_items", 0).get_all(PATH);
+        let res = dataset("all_items", 0).get_all(&path());
 
         assert!(res.is_ok());
 
@@ -302,77 +276,77 @@ mod tests {
     fn test_deletes_without_cache() {
         let data = dataset("delete_no_cache", 0);
 
-        assert_eq!(data.get_all(PATH).unwrap().len(), 2);
+        assert_eq!(data.get_all(&path()).unwrap().len(), 2);
 
         // Test flag #1
-        let f1 = data.delete(PATH, "f1");
+        let f1 = data.delete(&path(), "f1");
         assert_eq!(f1.unwrap().unwrap(), f("f1", false));
 
-        let f1_2 = data.get(PATH, "f1");
+        let f1_2 = data.get(&path(), "f1");
         assert!(f1_2.unwrap().is_none());
 
         // Test flag #2
-        let f2 = data.delete(PATH, "f2");
+        let f2 = data.delete(&path(), "f2");
         assert_eq!(f2.unwrap().unwrap(), f("f2", true));
 
-        let f2_2 = data.get(PATH, "f2");
+        let f2_2 = data.get(&path(), "f2");
         assert!(f2_2.unwrap().is_none());
 
-        assert_eq!(data.get_all(PATH).unwrap().len(), 0);
+        assert_eq!(data.get_all(&path()).unwrap().len(), 0);
     }
 
     #[test]
     fn test_deletes_with_cache() {
         let data = dataset("delete_cache", 30);
 
-        assert_eq!(data.get_all(PATH).unwrap().len(), 2);
+        assert_eq!(data.get_all(&path()).unwrap().len(), 2);
 
         // Test flag #1
-        let f1 = data.delete(PATH, "f1");
+        let f1 = data.delete(&path(), "f1");
         assert_eq!(f1.unwrap().unwrap(), f("f1", false));
 
-        let f1_2 = data.get(PATH, "f1");
+        let f1_2 = data.get(&path(), "f1");
         assert!(f1_2.unwrap().is_none());
 
         // Test flag #2
-        let f2 = data.delete(PATH, "f2");
+        let f2 = data.delete(&path(), "f2");
         assert_eq!(f2.unwrap().unwrap(), f("f2", true));
 
-        let f2_2 = data.get(PATH, "f2");
+        let f2_2 = data.get(&path(), "f2");
         assert!(f2_2.unwrap().is_none());
 
-        assert_eq!(data.get_all(PATH).unwrap().len(), 0);
+        assert_eq!(data.get_all(&path()).unwrap().len(), 0);
     }
 
     #[test]
     fn test_replacements_without_cache() {
         let data = dataset("replace_no_cache", 0);
 
-        assert_eq!(data.get_all(PATH).unwrap().len(), 2);
+        assert_eq!(data.get_all(&path()).unwrap().len(), 2);
 
         // Test flag #1
-        let f1 = data.upsert(PATH, "f1", &f("f1", true));
+        let f1 = data.upsert(&path(), "f1", &f("f1", true));
         assert_eq!(f1.unwrap().unwrap(), f("f1", false));
 
-        let f1_2 = data.get(PATH, "f1");
+        let f1_2 = data.get(&path(), "f1");
         assert_eq!(f1_2.unwrap().unwrap(), f("f1", true));
 
-        assert_eq!(data.get_all(PATH).unwrap().len(), 2);
+        assert_eq!(data.get_all(&path()).unwrap().len(), 2);
     }
 
     #[test]
     fn test_replacements_with_cache() {
         let data = dataset("replace_cache", 30);
 
-        assert_eq!(data.get_all(PATH).unwrap().len(), 2);
+        assert_eq!(data.get_all(&path()).unwrap().len(), 2);
 
         // Test flag #1
-        let f1 = data.upsert(PATH, "f1", &f("f1", true));
+        let f1 = data.upsert(&path(), "f1", &f("f1", true));
         assert_eq!(f1.unwrap().unwrap(), f("f1", false));
 
-        let f1_2 = data.get(PATH, "f1");
+        let f1_2 = data.get(&path(), "f1");
         assert_eq!(f1_2.unwrap().unwrap(), f("f1", true));
 
-        assert_eq!(data.get_all(PATH).unwrap().len(), 2);
+        assert_eq!(data.get_all(&path()).unwrap().len(), 2);
     }
 }

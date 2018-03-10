@@ -1,20 +1,9 @@
 import React from 'react';
 import { render } from 'react-dom';
+import Reboot from 'material-ui/Reboot';
+import ErrorPrompt from './ErrorPrompt.jsx';
 import FeatureGroup from './FeatureGroup.jsx';
 import Store from './Store.jsx';
-
-let data = [
-  {
-    app: "nextavenue",
-    env: "prod",
-    features: [
-      {"key":"f5","value":true,"version":1,"enabled":false},
-      {"key":"f3","value":false,"version":2,"enabled":true},
-      {"key":"f9","value":true,"version":4,"enabled":false},
-      {"key":"f7","value":false,"version":2,"enabled":true}
-    ]
-  }
-];
 
 class App extends React.Component {
   constructor(props) {
@@ -40,11 +29,17 @@ class App extends React.Component {
 
   render() {
     return (
-      <div>
+      <div style={{maxWidth: '800', margin: '0 auto'}}>
         {
           this.props.data.map(group => {
             let key = `${group.app}::${group.env}`;
             let expanded = this.isExpanded(key);
+            let adder = key => {
+              this.props.onAdd(group.app, group.env, key);
+            };
+            let remover = key => {
+              this.props.onDelete(group.app, group.env, key);
+            };
 
             return <FeatureGroup
               key={key}
@@ -54,6 +49,8 @@ class App extends React.Component {
               onChange={this.setExpanded(key)}
               features={group.features}
               updater={this.props.onUpdate(group.app, group.env)}
+              adder={adder}
+              remover={remover}
             />;
           })
         }
@@ -64,9 +61,11 @@ class App extends React.Component {
 
 function Run() {
   return (
-    <Store data={data} baseUrl="/api/v1">
-      <App />
-    </Store>
+    <ErrorPrompt>
+      <Store baseUrl="/api/v1">
+        <App />
+      </Store>
+    </ErrorPrompt>
   );
 }
 

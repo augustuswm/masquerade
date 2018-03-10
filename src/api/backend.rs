@@ -4,18 +4,16 @@ use iron::prelude::*;
 use std::sync::Arc;
 
 use error::BannerError;
-use flag::Flag;
 use store::ThreadedStore;
 
-#[derive(Debug)]
-pub struct BackendMiddleware {
-    store: Arc<ThreadedStore<Item = Flag, Error = BannerError>>,
+pub struct BackendMiddleware<Path, Item> {
+    store: Arc<ThreadedStore<Path, Item, Error = BannerError>>,
 }
 
-impl BackendMiddleware {
-    pub fn new<T>(store: T) -> BackendMiddleware
+impl<Path, Item> BackendMiddleware<Path, Item> {
+    pub fn new<T>(store: T) -> BackendMiddleware<Path, Item>
     where
-        T: ThreadedStore<Item = Flag, Error = BannerError> + 'static,
+        T: ThreadedStore<Path, Item, Error = BannerError> + 'static,
     {
         BackendMiddleware {
             store: Arc::new(store),
@@ -23,26 +21,26 @@ impl BackendMiddleware {
     }
 }
 
-impl typemap::Key for BackendMiddleware {
-    type Value = Arc<ThreadedStore<Item = Flag, Error = BannerError>>;
+impl<Path: 'static, Item: 'static> typemap::Key for BackendMiddleware<Path, Item> {
+    type Value = Arc<ThreadedStore<Path, Item, Error = BannerError>>;
 }
 
-impl BeforeMiddleware for BackendMiddleware {
+impl<Path: 'static, Item: 'static> BeforeMiddleware for BackendMiddleware<Path, Item> {
     fn before(&self, req: &mut Request) -> IronResult<()> {
         req.extensions
-            .insert::<BackendMiddleware>(self.store.clone());
+            .insert::<BackendMiddleware<Path, Item>>(self.store.clone());
         Ok(())
     }
 }
 
-pub trait BackendReqExt {
-    fn get_store(&self) -> Option<Arc<ThreadedStore<Item = Flag, Error = BannerError>>>;
+pub trait BackendReqExt<Path, Item> {
+    fn get_store(&self) -> Option<Arc<ThreadedStore<Path, Item, Error = BannerError>>>;
 }
 
-impl<'a, 'b> BackendReqExt for Request<'a, 'b> {
-    fn get_store(&self) -> Option<Arc<ThreadedStore<Item = Flag, Error = BannerError>>> {
+impl<'a, 'b, Path: 'static, Item: 'static> BackendReqExt<Path, Item> for Request<'a, 'b> {
+    fn get_store(&self) -> Option<Arc<ThreadedStore<Path, Item, Error = BannerError>>> {
         self.extensions
-            .get::<BackendMiddleware>()
+            .get::<BackendMiddleware<Path, Item>>()
             .map(|backend| backend.clone())
     }
 }

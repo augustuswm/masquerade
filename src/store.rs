@@ -1,24 +1,18 @@
 use std::collections::HashMap;
-use std::fmt::Debug;
 
-pub trait Store {
-    type Item;
+pub trait Store<Path, Item> {
     type Error;
 
-    fn get(&self, path: &str, key: &str) -> Result<Option<Self::Item>, Self::Error>;
-    fn get_all(&self, path: &str) -> Result<HashMap<String, Self::Item>, Self::Error>;
-    fn delete(&self, path: &str, key: &str) -> Result<Option<Self::Item>, Self::Error>;
-    fn upsert(
-        &self,
-        path: &str,
-        key: &str,
-        item: &Self::Item,
-    ) -> Result<Option<Self::Item>, Self::Error>;
+    // fn index(&self) -> Result<Vec<Path>, Self::Error>;
+    fn get(&self, path: &Path, key: &str) -> Result<Option<Item>, Self::Error>;
+    fn get_all(&self, path: &Path) -> Result<HashMap<String, Item>, Self::Error>;
+    fn delete(&self, path: &Path, key: &str) -> Result<Option<Item>, Self::Error>;
+    fn upsert(&self, path: &Path, key: &str, item: &Item) -> Result<Option<Item>, Self::Error>;
 }
 
-pub trait ThreadedStore: Store + Send + Sync + Debug {}
-impl<T> ThreadedStore for T
+pub trait ThreadedStore<P, I>: Store<P, I> + Send + Sync {}
+impl<T, P, I> ThreadedStore<P, I> for T
 where
-    T: Store + Send + Sync + Debug,
+    T: Store<P, I> + Send + Sync,
 {
 }

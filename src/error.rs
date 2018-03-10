@@ -1,20 +1,48 @@
+#[cfg(feature = "redis-backend")]
+use redis::RedisError;
+
 use std::error::Error;
 use std::fmt;
 
 use api::error::APIError;
+#[cfg(feature = "dynamo-backend")]
+use storage::dynamo::DynamoError;
+#[cfg(feature = "mongo-backend")]
+use storage::mongo::MongoError;
 
-#[cfg(feature = "redis-backend")]
-use redis::RedisError;
-
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum BannerError {
-    AllCacheMissing,
     APIError(APIError),
     CachePoisonedError,
-    FailedToSerializeItem,
-    InvalidRedisConfig,
-    ItemDoesNotExist,
+    FailedToParsePath,
+    #[cfg(feature = "dynamo-backend")] DynamoFailure(DynamoError),
+    #[cfg(feature = "mongo-backend")] MongoFailure(MongoError),
     #[cfg(feature = "redis-backend")] RedisFailure(RedisError),
+
+    #[cfg(feature = "redis-backend")] InvalidRedisConfig,
+    AllCacheMissing,
+    FailedToSerializeItem,
+}
+
+#[cfg(feature = "dynamo-backend")]
+impl From<DynamoError> for BannerError {
+    fn from(err: DynamoError) -> BannerError {
+        BannerError::DynamoFailure(err)
+    }
+}
+
+#[cfg(feature = "redis-backend")]
+impl From<RedisError> for BannerError {
+    fn from(err: RedisError) -> BannerError {
+        BannerError::RedisFailure(err)
+    }
+}
+
+#[cfg(feature = "mongo-backend")]
+impl From<MongoError> for BannerError {
+    fn from(err: MongoError) -> BannerError {
+        BannerError::MongoFailure(err)
+    }
 }
 
 impl Error for BannerError {

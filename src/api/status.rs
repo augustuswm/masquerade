@@ -9,7 +9,7 @@ struct Status {
     pub backend: bool,
 }
 
-pub fn handler(req: &mut Request) -> IronResult<Response> {
+pub fn handler(_: &mut Request) -> IronResult<Response> {
     #[cfg(feature = "redis-backend")]
     let status = Status {
         backend: redis_health(),

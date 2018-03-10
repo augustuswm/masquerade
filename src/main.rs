@@ -1,14 +1,27 @@
-#![allow(dead_code, unused_must_use, unused_variables)]
-
 extern crate bodyparser;
+#[macro_use]
+#[cfg(feature = "mongo-backend")]
+extern crate bson;
+extern crate env_logger;
+#[cfg(feature = "dynamo-backend")]
+extern crate hyper;
 extern crate iron;
 #[macro_use]
 extern crate log;
+extern crate logger;
+#[cfg(feature = "mongo-backend")]
+extern crate mongo_driver;
 extern crate mount;
 extern crate persistent;
 #[cfg(feature = "redis-backend")]
 extern crate redis;
 extern crate router;
+#[cfg(feature = "dynamo-backend")]
+extern crate rusoto_core;
+#[cfg(feature = "dynamo-backend")]
+extern crate rusoto_credential;
+#[cfg(feature = "dynamo-backend")]
+extern crate rusoto_dynamodb;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -17,9 +30,6 @@ extern crate staticfile;
 
 use iron::Iron;
 use mount::Mount;
-use staticfile::Static;
-
-use std::path::Path;
 
 use store::Store;
 
@@ -31,21 +41,49 @@ mod storage;
 mod store;
 
 fn main() {
+    #[cfg(not(any(feature = "dynamo-backend", feature = "redis-backend",
+                  feature = "mem-backend", feature = "mongo-backend")))]
+    compile_error!("At least one backend feature must be selected");
+
+    env_logger::init();
+
+    #[cfg(feature = "dynamo-backend")]
+    let apps = storage::dynamo::DynamoStore::new("apps").unwrap();
+
     #[cfg(feature = "mem-backend")]
-    let backend = storage::mem::MemStore::new();
+    let apps = storage::mem::MemStore::new();
+
+    #[cfg(feature = "mongo-backend")]
+    let apps = storage::mongo::MongoStore::open("0.0.0.0", 27017, "banner", "", "", None).unwrap();
 
     #[cfg(feature = "redis-backend")]
-    let backend = storage::redis::RedisStore::open("0.0.0.0", 6379, Some("banner"), None).unwrap();
+    let apps = storage::redis::RedisStore::open("0.0.0.0", 6379, Some("banner"), None).unwrap();
 
-    let flag = flag::Flag::new("f1", "app", "env", flag::FlagValue::Bool(true), 1, true);
+    #[cfg(feature = "dynamo-backend")]
+    let flags = storage::dynamo::DynamoStore::new("flags").unwrap();
 
-    backend.upsert("tpt::prod", "f1", &flag);
+    #[cfg(feature = "mem-backend")]
+    let flags = storage::mem::MemStore::new();
+
+    #[cfg(feature = "mongo-backend")]
+    let flags = storage::mongo::MongoStore::open("0.0.0.0", 27017, "banner", "", "", None).unwrap();
+
+    #[cfg(feature = "redis-backend")]
+    let flags = storage::redis::RedisStore::open("0.0.0.0", 6379, Some("banner"), None).unwrap();
+
+    let flag = flag::Flag::new("f1", flag::FlagValue::Bool(true), 1, true);
+
+    let a = "tpt$prod".parse::<flag::FlagPath>().unwrap();
+
+    let _ = apps.upsert(&"paths".to_string(), "tpt$prod", &a);
+    let _ = flags.upsert(&a, "f1", &flag);
 
     let mut entry = Mount::new();
 
-    entry.mount("/", Static::new(Path::new("src/frontend/static/")));
+    entry.mount("/", api::frontend::v1());
 
-    entry.mount("/api/v1/", api::v1(backend));
+    entry.mount("/api/v1/", api::api::v1(apps, flags));
 
-    Iron::new(entry).http("localhost:3000").unwrap();
+    println!("Starting up");
+    Iron::new(entry).http("0.0.0.0:3000").unwrap();
 }
