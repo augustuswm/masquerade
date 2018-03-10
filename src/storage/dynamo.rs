@@ -233,13 +233,13 @@ mod tests {
         [PATH, test].concat().parse::<FlagPath>().unwrap()
     }
 
-    fn dataset() -> DefaultDynamoStore<Flag> {
+    fn dataset(p: &str, dur: u64) -> DefaultDynamoStore<Flag> {
         DynamoStore::new("test").unwrap()
     }
 
     #[test]
     fn test_gets_items() {
-        let data = dataset();
+        let data = dataset("get_items", 0);
         let flags = vec![f("f1", false), f("f2", true)];
 
         for flag in flags.iter() {
@@ -255,7 +255,7 @@ mod tests {
     fn test_gets_all_items() {
         let flags = vec![f("f1", false), f("f2", true)];
 
-        let data = dataset();
+        let data = dataset("all_items", 0);
         for flag in flags.iter() {
             data.upsert(&path("gets_all"), flag.key(), &flag);
         }
@@ -271,8 +271,36 @@ mod tests {
     }
 
     #[test]
-    fn test_deletes() {
-        let data = dataset();
+    fn test_deletes_without_cache() {
+        let data = dataset("delete_no_cache", 0);
+        let flags = vec![f("f1", false), f("f2", true)];
+
+        for flag in flags.iter() {
+            data.upsert(&path("deletes"), flag.key(), &flag);
+        }
+
+        assert_eq!(data.get_all(&path("deletes")).unwrap().len(), 2);
+
+        // Test flag #1
+        let f1 = data.delete(&path("deletes"), "f1");
+        assert_eq!(f1.unwrap().unwrap(), flags[0]);
+
+        let f1_2 = data.get(&path("deletes"), "f1");
+        assert!(f1_2.unwrap().is_none());
+
+        // Test flag #2
+        let f2 = data.delete(&path("deletes"), "f2");
+        assert_eq!(f2.unwrap().unwrap(), flags[1]);
+
+        let f2_2 = data.get(&path("deletes"), "f2");
+        assert!(f2_2.unwrap().is_none());
+
+        assert_eq!(data.get_all(&path("deletes")).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_deletes_with_cache() {
+        let data = dataset("delete_cache", 30);
         let flags = vec![f("f1", false), f("f2", true)];
 
         for flag in flags.iter() {
@@ -300,7 +328,29 @@ mod tests {
 
     #[test]
     fn test_replacements_without_cache() {
-        let data = dataset();
+        let data = dataset("replace_no_cache", 0);
+        let flags = vec![f("f1", false), f("f2", true)];
+
+        for flag in flags.iter() {
+            data.upsert(&path("replacements"), flag.key(), &flag);
+        }
+
+        assert_eq!(data.get_all(&path("replacements")).unwrap().len(), 2);
+
+        // Test flag #1
+        let new_f1 = f("f1", true);
+        let f1 = data.upsert(&path("replacements"), "f1", &new_f1);
+        assert_eq!(f1.unwrap().unwrap(), flags[0]);
+
+        let f1_2 = data.get(&path("replacements"), "f1");
+        assert_eq!(f1_2.unwrap().unwrap(), new_f1);
+
+        assert_eq!(data.get_all(&path("replacements")).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_replacements_with_cache() {
+        let data = dataset("replace_cache", 30);
         let flags = vec![f("f1", false), f("f2", true)];
 
         for flag in flags.iter() {
