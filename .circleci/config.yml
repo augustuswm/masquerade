@@ -16,4 +16,4 @@ jobs:
           command: dockerize -wait tcp://localhost:6379 -timeout 1m
       - run:
           name: Test
-          command: cargo test --feature redis-backend
+          command: cargo test --features redis-backend
