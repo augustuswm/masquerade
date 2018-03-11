@@ -44,11 +44,12 @@ pub fn read(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = 
                 Ok(Some(flag)) => Some(flag),
                 _ => None,
             }.ok_or(APIError::FailedToFind)?;
+
             Ok(serde_json::to_string(&flag)
-                .or(Err(APIError::FailedToSerialize))?
+                .or(Err(APIError::FailedToSerialize))
                 .into())
         } else {
-            Err(APIError::FailedToParseParams)?
+            Err(APIError::FailedToParseParams)
         }
     }))
 }
@@ -131,10 +132,29 @@ pub fn delete(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error 
                 })?;
 
             Ok(serde_json::to_string(&flag)
-                .or(Err(APIError::FailedToSerialize))?
+                .or(Err(APIError::FailedToSerialize))
                 .into())
         } else {
-            Err(APIError::FailedToParseParams)?
+            Err(APIError::FailedToParseParams)
         }
+    }))
+}
+
+pub fn all(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+    Box::new(future::ok(()).and_then(move |_| {
+        let state = req.state();
+        let flag_req = FlagReq::from_req(&req)?;
+
+        state
+            .flags()
+            .get_all(&flag_req.path)
+            .and_then(|flags| {
+                Ok(
+                    serde_json::to_string(&flags.values().collect::<Vec<&Flag>>())
+                        .or(Err(APIError::FailedToSerialize))
+                        .into(),
+                )
+            })
+            .map_err(|_| APIError::FailedToAccessStore)
     }))
 }

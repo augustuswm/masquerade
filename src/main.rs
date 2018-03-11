@@ -1,24 +1,17 @@
 extern crate actix;
 extern crate actix_web;
-// extern crate bodyparser;
 #[macro_use]
 #[cfg(feature = "mongo-backend")]
 extern crate bson;
-// extern crate env_logger;
 extern crate futures;
 #[cfg(feature = "dynamo-backend")]
 extern crate hyper;
-// extern crate iron;
 #[macro_use]
 extern crate log;
-// extern crate logger;
 #[cfg(feature = "mongo-backend")]
 extern crate mongo_driver;
-// extern crate mount;
-// extern crate persistent;
 #[cfg(feature = "redis-backend")]
 extern crate redis;
-// extern crate router;
 #[cfg(feature = "dynamo-backend")]
 extern crate rusoto_core;
 #[cfg(feature = "dynamo-backend")]
@@ -29,10 +22,6 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
-// extern crate staticfile;
-
-// use iron::Iron;
-// use mount::Mount;
 
 use store::Store;
 
@@ -47,8 +36,6 @@ fn main() {
     #[cfg(not(any(feature = "dynamo-backend", feature = "redis-backend",
                   feature = "mem-backend", feature = "mongo-backend")))]
     compile_error!("At least one backend feature must be selected");
-
-    // env_logger::init();
 
     #[cfg(feature = "dynamo-backend")]
     let apps = storage::dynamo::DynamoStore::new("apps").unwrap();
