@@ -1,39 +1,32 @@
-use bodyparser;
-use iron::prelude::*;
-use iron::status;
-use router::{Params, Router};
+use actix_web::*;
+use futures::{future, Future, Stream};
 use serde_json;
 
-use std::sync::Arc;
+use std::str;
 
-use api::backend::BackendReqExt;
+use api::State;
 use api::error::APIError;
 use error::BannerError;
 use flag::{Flag, FlagPath};
 use store::ThreadedStore;
 
-struct FlagReq<'a> {
+struct FlagReq {
     pub path: FlagPath,
-    pub key: Option<&'a str>,
-    pub store: Arc<ThreadedStore<FlagPath, Flag, Error = BannerError>>,
+    pub key: Option<String>,
 }
 
-impl<'a> FlagReq<'a> {
-    pub fn from_params(req: &'a mut Request) -> Result<FlagReq<'a>, APIError> {
-        let params: &Params = req.extensions
-            .get::<Router>()
-            .ok_or(APIError::FailedToAccessParams)?;
-        let store = req.get_store().ok_or(APIError::FailedToAccessStore)?;
+impl FlagReq {
+    pub fn from_req(req: &HttpRequest<State>) -> Result<FlagReq, APIError> {
+        let params = req.match_info();
 
-        if let (Some(app), Some(env)) = (params.find("app"), params.find("env")) {
+        if let (Some(app), Some(env)) = (params.get("app"), params.get("env")) {
             Ok(FlagReq {
                 path: FlagPath {
                     app: app.into(),
                     env: env.into(),
                     path: [app, "$", env].concat(),
                 },
-                key: params.find("key"),
-                store: store,
+                key: params.get("key").map(|s| s.into()),
             })
         } else {
             Err(APIError::FailedToParseParams)
@@ -41,94 +34,107 @@ impl<'a> FlagReq<'a> {
     }
 }
 
-pub fn create(req: &mut Request) -> IronResult<Response> {
-    if let Ok(Some(flag)) = req.get::<bodyparser::Struct<Flag>>() {
-        let flag_req = FlagReq::from_params(req)?;
-
-        if let Ok(Some(_exists)) = flag_req.store.get(&flag_req.path, flag.key()) {
-            Err(APIError::AlreadyExists)?
-        }
-
-        flag_req
-            .store
-            .upsert(&flag_req.path, flag.key(), &flag)
-            .and_then(|_| Ok(Response::with((status::Created, ""))))
-            .map_err(|err| err.into())
-    } else {
-        Err(APIError::FailedToParseBody)?
-    }
-}
-
-pub fn read(req: &mut Request) -> IronResult<Response> {
-    let flag_req = FlagReq::from_params(req)?;
-
-    if let Some(ref key) = flag_req.key {
-        let flag = match flag_req.store.get(&flag_req.path, key) {
-            Ok(Some(flag)) => Some(flag),
-            _ => None,
-        }.ok_or(APIError::FailedToFind)?;
-
-        let stringy_flag = serde_json::to_string(&flag).or(Err(APIError::FailedToSerialize))?;
-
-        Ok(Response::with((status::Ok, stringy_flag)))
-    } else {
-        Err(APIError::FailedToParseParams)?
-    }
-}
-
-pub fn update(req: &mut Request) -> IronResult<Response> {
-    if let Ok(Some(new_flag)) = req.get::<bodyparser::Struct<Flag>>() {
-        let flag_req = FlagReq::from_params(req)?;
+pub fn read(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+    Box::new(future::ok(()).and_then(move |_| {
+        let state = req.state();
+        let flag_req = FlagReq::from_req(&req)?;
 
         if let Some(ref key) = flag_req.key {
-            let mut flag = match flag_req.store.get(&flag_req.path, key) {
+            let flag = match state.flags().get(&flag_req.path, key) {
                 Ok(Some(flag)) => Some(flag),
                 _ => None,
             }.ok_or(APIError::FailedToFind)?;
-
-            flag.set_value(new_flag.value());
-            flag.toggle(new_flag.is_enabled());
-
-            flag_req
-                .store
-                .upsert(&flag_req.path, key, &flag)
-                .and_then(|_| Ok(Response::with((status::Ok, ""))))
-                .map_err(|err| err.into())
+            Ok(serde_json::to_string(&flag)
+                .or(Err(APIError::FailedToSerialize))?
+                .into())
         } else {
             Err(APIError::FailedToParseParams)?
         }
-    } else {
-        Err(APIError::FailedToParseBody)?
-    }
+    }))
 }
 
-pub fn delete(req: &mut Request) -> IronResult<Response> {
-    let flag_req = FlagReq::from_params(req)?;
+pub fn create(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+    let state = req.state().clone();
+    let flag_req = match FlagReq::from_req(&req) {
+        Ok(res) => res,
+        Err(err) => return Box::new(future::err(err)),
+    };
 
-    if let Some(ref key) = flag_req.key {
-        let flag = match flag_req.store.delete(&flag_req.path, key) {
-            Ok(Some(flag)) => Some(flag),
-            _ => None,
-        }.ok_or(APIError::FailedToFind)?;
+    req.concat2()
+        .from_err()
+        .and_then(move |body| {
+            if let Ok(flag) = serde_json::from_str::<Flag>(str::from_utf8(&body).unwrap()) {
+                if let Ok(Some(_exists)) = state.flags().get(&flag_req.path, flag.key()) {
+                    Err(APIError::AlreadyExists)?
+                }
 
-        let stringy_flag = serde_json::to_string(&flag).or(Err(APIError::FailedToSerialize))?;
-
-        Ok(Response::with((status::Ok, stringy_flag)))
-    } else {
-        Err(APIError::FailedToParseParams)?
-    }
-}
-
-pub fn all(req: &mut Request) -> IronResult<Response> {
-    let flag_req = FlagReq::from_params(req)?;
-
-    flag_req
-        .store
-        .get_all(&flag_req.path)
-        .and_then(|flags| {
-            let stringy_flags = serde_json::to_string(&flags.values().collect::<Vec<&Flag>>())
-                .or(Err(APIError::FailedToSerialize))?;
-            Ok(Response::with((status::Ok, stringy_flags)))
+                state
+                    .flags()
+                    .upsert(&flag_req.path, flag.key(), &flag)
+                    .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED, Body::Empty)))
+                    .map_err(|_| APIError::FailedToWriteToStore)
+            } else {
+                Err(APIError::FailedToParseBody)
+            }
         })
-        .map_err(|err| err.into())
+        .responder()
+}
+
+pub fn update(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+    let state = req.state().clone();
+    let flag_req = match FlagReq::from_req(&req) {
+        Ok(res) => res,
+        Err(err) => return Box::new(future::err(err)),
+    };
+
+    req.concat2()
+        .from_err()
+        .and_then(move |body| {
+            if let Ok(new_flag) = serde_json::from_str::<Flag>(str::from_utf8(&body).unwrap()) {
+                if let Some(ref key) = flag_req.key {
+                    let mut flag = match state.flags().get(&flag_req.path, key) {
+                        Ok(Some(flag)) => Some(flag),
+                        _ => None,
+                    }.ok_or(APIError::FailedToFind)?;
+
+                    flag.set_value(new_flag.value());
+                    flag.toggle(new_flag.is_enabled());
+
+                    state
+                        .flags()
+                        .upsert(&flag_req.path, key, &flag)
+                        .and_then(|_| Ok(HttpResponse::new(StatusCode::OK, Body::Empty)))
+                        .map_err(|_| APIError::FailedToWriteToStore)
+                } else {
+                    Err(APIError::FailedToParseParams)
+                }
+            } else {
+                Err(APIError::FailedToParseBody)
+            }
+        })
+        .responder()
+}
+
+pub fn delete(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+    Box::new(future::ok(()).and_then(move |_| {
+        let state = req.state();
+        let flag_req = FlagReq::from_req(&req)?;
+
+        if let Some(ref key) = flag_req.key {
+            let flag = state
+                .flags()
+                .delete(&flag_req.path, key)
+                .map_err(|_| APIError::FailedToWriteToStore)
+                .and_then(|res| match res {
+                    Some(flag) => Ok(flag),
+                    None => Err(APIError::FailedToFind),
+                })?;
+
+            Ok(serde_json::to_string(&flag)
+                .or(Err(APIError::FailedToSerialize))?
+                .into())
+        } else {
+            Err(APIError::FailedToParseParams)?
+        }
+    }))
 }

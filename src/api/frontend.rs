@@ -1,7 +1,5 @@
-use staticfile::Static;
+use actix_web::Application;
 
-use std::path::Path;
-
-pub fn v1() -> Static {
-    Static::new(Path::new("src/frontend/static/"))
+pub fn app() -> Application {
+    Application::new()
 }

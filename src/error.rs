@@ -4,7 +4,7 @@ use redis::RedisError;
 use std::error::Error;
 use std::fmt;
 
-use api::error::APIError;
+// use api::error::APIError;
 #[cfg(feature = "dynamo-backend")]
 use storage::dynamo::DynamoError;
 #[cfg(feature = "mongo-backend")]
@@ -12,7 +12,7 @@ use storage::mongo::MongoError;
 
 #[derive(Debug)]
 pub enum BannerError {
-    APIError(APIError),
+    // APIError(APIError),
     CachePoisonedError,
     FailedToParsePath,
     #[cfg(feature = "dynamo-backend")] DynamoFailure(DynamoError),

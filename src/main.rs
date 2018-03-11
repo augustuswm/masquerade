@@ -1,21 +1,24 @@
-extern crate bodyparser;
+extern crate actix;
+extern crate actix_web;
+// extern crate bodyparser;
 #[macro_use]
 #[cfg(feature = "mongo-backend")]
 extern crate bson;
-extern crate env_logger;
+// extern crate env_logger;
+extern crate futures;
 #[cfg(feature = "dynamo-backend")]
 extern crate hyper;
-extern crate iron;
+// extern crate iron;
 #[macro_use]
 extern crate log;
-extern crate logger;
+// extern crate logger;
 #[cfg(feature = "mongo-backend")]
 extern crate mongo_driver;
-extern crate mount;
-extern crate persistent;
+// extern crate mount;
+// extern crate persistent;
 #[cfg(feature = "redis-backend")]
 extern crate redis;
-extern crate router;
+// extern crate router;
 #[cfg(feature = "dynamo-backend")]
 extern crate rusoto_core;
 #[cfg(feature = "dynamo-backend")]
@@ -26,10 +29,10 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
-extern crate staticfile;
+// extern crate staticfile;
 
-use iron::Iron;
-use mount::Mount;
+// use iron::Iron;
+// use mount::Mount;
 
 use store::Store;
 
@@ -45,7 +48,7 @@ fn main() {
                   feature = "mem-backend", feature = "mongo-backend")))]
     compile_error!("At least one backend feature must be selected");
 
-    env_logger::init();
+    // env_logger::init();
 
     #[cfg(feature = "dynamo-backend")]
     let apps = storage::dynamo::DynamoStore::new("apps").unwrap();
@@ -78,12 +81,14 @@ fn main() {
     let _ = apps.upsert(&"paths".to_string(), "tpt$prod", &a);
     let _ = flags.upsert(&a, "f1", &flag);
 
-    let mut entry = Mount::new();
+    api::boot(flags);
 
-    entry.mount("/", api::frontend::v1());
+    // let mut entry = Mount::new();
 
-    entry.mount("/api/v1/", api::api::v1(apps, flags));
+    // entry.mount("/", api::frontend::v1());
 
-    println!("Starting up");
-    Iron::new(entry).http("0.0.0.0:3000").unwrap();
+    // entry.mount("/api/v1/", api::api::v1(apps, flags));
+
+    // println!("Starting up");
+    // Iron::new(entry).http("0.0.0.0:3000").unwrap();
 }

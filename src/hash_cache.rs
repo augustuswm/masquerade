@@ -31,14 +31,14 @@ impl<T> HashCache<T> {
 
     pub fn reader(&self) -> CacheResult<RwLockReadGuard<HashMap<String, (T, Instant)>>> {
         self.cache.read().map_err(|_| {
-            error!("Failed to acquire read guard for cache failed due to poisoning");
+            // error!("Failed to acquire read guard for cache failed due to poisoning");
             BannerError::CachePoisonedError
         })
     }
 
     pub fn writer(&self) -> CacheResult<RwLockWriteGuard<HashMap<String, (T, Instant)>>> {
         self.cache.write().map_err(|_| {
-            error!("Failed to acquire write guard for cache failed due to poisoning");
+            // error!("Failed to acquire write guard for cache failed due to poisoning");
             BannerError::CachePoisonedError
         })
     }
