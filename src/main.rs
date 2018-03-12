@@ -68,7 +68,7 @@ fn main() {
     let _ = apps.upsert(&"paths".to_string(), "tpt$prod", &a);
     let _ = flags.upsert(&a, "f1", &flag);
 
-    api::boot(flags);
+    api::boot(flags, apps);
 
     // let mut entry = Mount::new();
 
