@@ -11,12 +11,8 @@ pub fn app(state: State) -> Application<State> {
             r.method(Method::POST).a(flag::create)
         })
         .resource("/{app}/{env}/flag/{key}/", |r| {
-            r.method(Method::GET).a(flag::read)
-        })
-        .resource("/{app}/{env}/flag/{key}/", |r| {
-            r.method(Method::POST).a(flag::update)
-        })
-        .resource("/{app}/{env}/flag/{key}/", |r| {
+            r.method(Method::GET).a(flag::read);
+            r.method(Method::POST).a(flag::update);
             r.method(Method::DELETE).a(flag::delete)
         })
         .resource("/{app}/{env}/flags/", |r| {
