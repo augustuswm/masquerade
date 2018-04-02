@@ -65,6 +65,11 @@ pub fn create(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error 
         .from_err()
         .and_then(move |body| {
             if let Ok(flag) = serde_json::from_str::<Flag>(str::from_utf8(&body).unwrap()) {
+                // Disallow empty string key
+                if flag.key().len() == 0 {
+                    Err(APIError::InvalidFlag)?
+                }
+
                 if let Ok(Some(_exists)) = state.flags().get(&flag_req.path, flag.key()) {
                     Err(APIError::AlreadyExists)?
                 }
@@ -149,11 +154,14 @@ pub fn all(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = A
             .flags()
             .get_all(&flag_req.path)
             .and_then(|flags| {
-                Ok(
-                    serde_json::to_string(&flags.values().collect::<Vec<&Flag>>())
-                        .or(Err(APIError::FailedToSerialize))
-                        .into(),
-                )
+                let mut flag_list = flags.values().collect::<Vec<&Flag>>();
+                flag_list
+                    .as_mut_slice()
+                    .sort_by(|&a, &b| a.key().cmp(b.key()));
+
+                Ok(serde_json::to_string(&flag_list)
+                    .or(Err(APIError::FailedToSerialize))
+                    .into())
             })
             .map_err(|_| APIError::FailedToAccessStore)
     }))

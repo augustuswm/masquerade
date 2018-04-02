@@ -14,6 +14,7 @@ pub enum APIError {
     FailedToParseParams,
     FailedToSerialize,
     FailedToWriteToStore,
+    InvalidFlag,
 }
 
 impl APIError {
@@ -27,6 +28,7 @@ impl APIError {
             &APIError::FailedToParseParams => StatusCode::BAD_REQUEST,
             &APIError::FailedToSerialize => StatusCode::INTERNAL_SERVER_ERROR,
             &APIError::FailedToWriteToStore => StatusCode::INTERNAL_SERVER_ERROR,
+            &APIError::InvalidFlag => StatusCode::BAD_REQUEST,
         }
     }
 }

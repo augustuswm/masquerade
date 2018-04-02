@@ -31,9 +31,9 @@ export default class Store extends React.Component {
       };
 
       entry.features.push(flag);
-      entry.features.sort((a, b) => {
-        return a.key > b.key;
-      });
+      // entry.features.sort((a, b) => {
+      //   return a.key > b.key;
+      // });
 
       data[appIndex] = entry;
       this.setState({data: data});
@@ -98,7 +98,7 @@ export default class Store extends React.Component {
     let url = `${this.props.baseUrl}/${app}/${env}/flags/`;
     axios.get(url)
       .then(resp => {
-        resp.data.sort((a, b) => a.key > b.key);
+        // resp.data.sort((a, b) => a.key > b.key);
 
         let appIndex = this.state.data.findIndex(entry => { return entry.app === app && entry.env === env; });
         this.state.data[appIndex].features = resp.data;
