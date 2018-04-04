@@ -1,12 +1,20 @@
 use actix_web::{Application, Method};
+use actix_web::middleware::{CookieSessionBackend, Logger, SessionStorage};
 
-use api::State;
+use api::admin::Admin;
+use api::auth::Auth;
 use api::flag;
 use api::path;
+use api::State;
 
 pub fn app(state: State) -> Application<State> {
     Application::with_state(state)
         .prefix("/api/v1")
+        .middleware(Logger::default())
+        .middleware(SessionStorage::new(
+            CookieSessionBackend::build(&[0; 32]).secure(false).finish(),
+        ))
+        .middleware(Auth)
         .resource("/{app}/{env}/flag/", |r| {
             r.method(Method::POST).a(flag::create)
         })

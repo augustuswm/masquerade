@@ -1,11 +1,14 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { withStyles } from 'material-ui/styles';
+import Divider from 'material-ui/Divider';
 import Drawer from 'material-ui/Drawer';
 import Hidden from 'material-ui/Hidden';
-import PathList from './PathList.jsx';
+import Paper from 'material-ui/Paper';
+import TextField from 'material-ui/TextField';
 
 import { connector } from './store';
+import PathList from './PathList.jsx';
 
 const Fragment = React.Fragment;
 
@@ -17,6 +20,9 @@ const styles = theme => ({
     [theme.breakpoints.up('md')]: {
       position: 'relative'
     }
+  },
+  scroll: {
+    overflowY: 'scroll'
   }
 });
 
@@ -34,12 +40,12 @@ class PathMenu extends React.Component {
 
     return (
       <Fragment>
-        <Hidden mdUp>
+        <Hidden mdUp className={classes.scroll}>
           <Drawer
             variant="temporary"
             anchor={"right"}
-            open={this.props.open}
-            onClose={this.props.menuToggle}
+            open={this.props.pathMenuOpen}
+            onClose={() => this.props.toggleMenu(false)}
             classes={{
               paper: classes.drawerPaper,
             }}
@@ -53,12 +59,12 @@ class PathMenu extends React.Component {
               selected={this.props.selected} />
           </Drawer>
         </Hidden>
-        <Hidden smDown implementation="css">
+        <Hidden smDown implementation="css" className={classes.scroll}>
           <Drawer
             variant="permanent"
             open
             classes={{
-              paper: classes.drawerPaper,
+              paper: classes.drawerPaper
             }}
           >
             <PathList

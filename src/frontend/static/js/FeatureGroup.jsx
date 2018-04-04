@@ -23,9 +23,11 @@ import { connector } from './store';
 
 let styles = theme => ({
   addButton: {
-    margin: theme.spacing.unit
+    margin: theme.spacing.unit,
+    marginRight: theme.spacing.unit * 2
   },
   expansion: {
+    display: 'flex',
     backgroundColor: theme.palette.grey['100'],
     alignItems: 'baseline'
   },
@@ -93,7 +95,7 @@ class FeatureGroup extends React.Component {
     let c = val[val.length - 1];
 
     // Replace space with underscore
-    if (c === " ") {
+    if (c === " " || c === "-") {
       val = val.substr(0, val.length - 1) + "_";
     }
 

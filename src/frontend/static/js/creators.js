@@ -19,6 +19,14 @@ function newFlag(app, env, key) {
   };
 }
 
+function auth(getState) {
+  let { apiKey, apiSecret } = getState();
+
+  return {
+    Authorization: btoa(apiKey + ':' + apiSecret)
+  };
+}
+
 export function addFlag(key) {
   return function(dispatch, getState) {
     let { baseUrl, app, env } = getState();
@@ -27,7 +35,7 @@ export function addFlag(key) {
 
     dispatch({ type: actions.ADD_FLAG, payload: flag });
 
-    return axios.post(url, flag).catch(err => {
+    return axios.post(url, flag, { headers: auth(getState) }).catch(err => {
       dispatch({ type: actions.DELETE_FLAG, payload: flag.key });
       // this.props.onError(`Failed to create flag ${flag.key}`);
     });
@@ -42,7 +50,7 @@ export function deleteFlag(key) {
 
     dispatch({ type: DELETE_FLAG, payload: key });
 
-    return axios.delete(url).catch(err => {
+    return axios.delete(url, { headers: auth(getState) }).catch(err => {
       if (flag.length > 0) {
         dispatch({ type: actions.ADD_FLAG, payload: flag[0] });
       }
@@ -53,18 +61,22 @@ export function deleteFlag(key) {
 
 export function loadApps() {
   return function(dispatch, getState) {
-    let { baseUrl } = getState();
+    let { baseUrl, key, secret } = getState();
     let url = `${baseUrl}/paths/`;
 
-    axios.get(url)
-      .then(function(resp) {
+    axios.get(url, { headers: auth(getState) }).then(function(resp) {
         let apps = resp.data;
-        apps.sort((a, b) => {
-          if (a.app !== b.app) {
-            return a.app > b.app;
-          } else {
-            return a.env > b.env;
+
+        if (apps.length === 0) {
+          throw "No apps available";
+        }
+
+        apps = apps.sort((a, b) => {
+          if (a.path !== b.path) {
+            return a.path > b.path;
           }
+
+          return 0;
         });
 
         dispatch({ type: actions.LOAD_APPS, payload: apps });
@@ -74,6 +86,8 @@ export function loadApps() {
           let firstApp = apps[0];
           selectApp(firstApp.app, firstApp.env)(dispatch, getState);
         }
+      }).catch(function(err) {
+        dispatch({ type: actions.UNLOAD_DATA, payload: undefined });
       });
   };
 }
@@ -83,7 +97,7 @@ export function loadFlags(app, env) {
     let { baseUrl } = getState();
     let url = `${baseUrl}/${app}/${env}/flags/`;
 
-    axios.get(url)
+    axios.get(url, { headers: auth(getState) })
       .then(function(resp) {
         dispatch({ type: actions.LOAD_DATA, payload: resp.data });
       });
@@ -117,11 +131,29 @@ export function updateFlag(key, enabled) {
 
       dispatch({ type: actions.UPDATE_FLAG, payload: f });
 
-      axios.post(url, f)
+      axios.post(url, f, { headers: auth(getState) })
         .catch(err => {
           f.enabled = !f.enabled;
           dispatch({ type: actions.UPDATE_FLAG, payload: f });
         });
     }
   };
+}
+
+export function updateKey(key) {
+  return function(dispatch, getState) {
+    dispatch({ type: actions.UPDATE_KEY, payload: key });
+    loadApps()(dispatch, getState);
+  }
+}
+
+export function updateSecret(secret) {
+  return function(dispatch, getState) {
+    dispatch({ type: actions.UPDATE_SECRET, payload: secret });
+    loadApps()(dispatch, getState);
+  }
+}
+
+export function toggleMenu(state) {
+  return { type: actions.TOGGLE_MENU, payload: state };
 }

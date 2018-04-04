@@ -11,11 +11,14 @@ class Updater extends React.Component {
   }
 
   componentDidMount() {
-    // this.schedule();
+    this.schedule();
   }
 
   run() {
-    this.props.loadFlags(this.props.app, this.props.env);
+    if (this.props.app && this.props.env) {
+      this.props.loadFlags(this.props.app, this.props.env);
+    }
+    
     this.schedule();
   }
 

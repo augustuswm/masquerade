@@ -23,21 +23,22 @@ const styles = theme => ({
 
 class PathList extends React.Component {
   render() {
-    let apps = this.props.apps.sort((a, b) => a.path < b.path);
-    let classes = this.props.classes;
+    let { className, classes, apps, app, env, selectApp, toggleMenu } = this.props;
 
     return (
-      <div>
-        {apps.map((app, i) => {
+      <div className={className}>
+        {apps.map((a, i) => {
+          let selected = a.app === app && a.env === env;
+
           return <ListItem
-            key={app.path}
+            key={a.path}
             button
             default={i === 0}
-            onClick={() => this.props.selectApp(app.app, app.env)}
-            className={this.props.selected === app.path ? classes.selected : ""}>
+            onClick={() => { toggleMenu(false); selectApp(a.app, a.env); }}
+            className={selected ? classes.selected : ""}>
             <ListItemText
-              primary={app.app}
-              secondary={app.env}/>
+              primary={a.app}
+              secondary={a.env}/>
           </ListItem>
         })}
       </div>

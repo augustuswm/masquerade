@@ -14,6 +14,7 @@ const lockTime = 86400000;
 class FeatureRow extends React.Component {
   shouldComponentUpdate(nextProps, nextState) {
     return !nextProps.f.enabled ||
+      nextProps.f.updated_at !== this.props.f.updated_at ||
       nextProps.f.enabled !== this.props.f.enabled;
   }
 

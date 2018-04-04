@@ -10,7 +10,10 @@ let initialState = {
   env: "",
   apps: [],
   flags: [],
-  refresh: 1000
+  refresh: 1000,
+  apiKey: "",
+  apiSecret: "",
+  pathMenuOpen: false
 };
 
 function reducer(state = initialState, action) {
@@ -81,6 +84,38 @@ function reducer(state = initialState, action) {
       );
     }
 
+    case actions.UPDATE_KEY: {
+      return Object.assign(
+        {},
+        state,
+        { apiKey: action.payload }
+      );
+    }
+
+    case actions.UPDATE_SECRET: {
+      return Object.assign(
+        {},
+        state,
+        { apiSecret: action.payload }
+      );
+    }
+
+    case actions.UNLOAD_DATA: {
+      return Object.assign(
+        {},
+        state,
+        { app: "", env: "", apps: [], flags: [] }
+      );
+    }
+
+    case actions.TOGGLE_MENU: {
+      return Object.assign(
+        {},
+        state,
+        { pathMenuOpen: action.payload }
+      );
+    }
+
     default:
       return state;
   }
@@ -91,7 +126,11 @@ const mapStateToProps = state => {
     app: state.app,
     env: state.env,
     apps: state.apps,
-    flags: state.flags
+    flags: state.flags,
+    refresh: state.refresh,
+    apiKey: state.key,
+    apiSecret: state.secret,
+    pathMenuOpen: state.pathMenuOpen
   };
 };
 
@@ -114,6 +153,15 @@ const mapDispatchToProps = dispatch => {
     },
     updateFlag(key, enabled) {
       dispatch(creators.updateFlag(key, enabled));
+    },
+    updateKey(key) {
+      dispatch(creators.updateKey(key));
+    },
+    updateSecret(secret) {
+      dispatch(creators.updateSecret(secret));
+    },
+    toggleMenu(state) {
+      dispatch(creators.toggleMenu(state));
     }
   };
 };
