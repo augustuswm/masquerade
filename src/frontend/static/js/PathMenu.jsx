@@ -6,6 +6,8 @@ import Drawer from 'material-ui/Drawer';
 import Hidden from 'material-ui/Hidden';
 import Paper from 'material-ui/Paper';
 import TextField from 'material-ui/TextField';
+import ListSubheader from "material-ui/List/ListSubheader";
+import { ListItem, ListItemText } from "material-ui/List";
 
 import { connector } from './store';
 import PathList from './PathList.jsx';
@@ -36,7 +38,7 @@ class PathMenu extends React.Component {
   };
 
   render() {
-    let classes = this.props.classes;
+    let { classes, toggleMenu, logout } = this.props;
 
     return (
       <Fragment>
@@ -45,7 +47,7 @@ class PathMenu extends React.Component {
             variant="temporary"
             anchor={"right"}
             open={this.props.pathMenuOpen}
-            onClose={() => this.props.toggleMenu(false)}
+            onClose={() => toggleMenu(false)}
             classes={{
               paper: classes.drawerPaper,
             }}
@@ -53,10 +55,24 @@ class PathMenu extends React.Component {
               keepMounted: true, // Better open performance on mobile.
             }}
           >
+            <ListSubheader disableSticky={true} color="primary">
+              Applications
+            </ListSubheader>
+            <Divider />
             <PathList
               paths={this.props.paths}
               selectPath={this.props.selectPath}
               selected={this.props.selected} />
+            <Divider />
+            <ListSubheader disableSticky={true} color="primary">
+              Account
+            </ListSubheader>
+            <Divider />
+            <div>
+              <ListItem button onClick={() => { toggleMenu(false); logout() }}>
+                <ListItemText primary="Logout" />
+              </ListItem>
+            </div>
           </Drawer>
         </Hidden>
         <Hidden smDown implementation="css" className={classes.scroll}>
@@ -85,4 +101,4 @@ PathMenu.propTypes = {
   apps: PropTypes.array.isRequired
 };
 
-export default connector(withStyles(styles)(PathMenu));
+export default connector(withStyles(styles, { withTheme: true })(PathMenu));

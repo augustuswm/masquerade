@@ -1,26 +1,10 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-
 import { withStyles } from 'material-ui/styles';
 import Button from 'material-ui/Button';
-import Divider from 'material-ui/Divider';
-import ExpandMoreIcon from 'material-ui-icons/ExpandMore';
-import ExpansionPanel, {
-  ExpansionPanelDetails,
-  ExpansionPanelSummary,
-  ExpansionPanelActions,
-} from 'material-ui/ExpansionPanel';
-import Grid from 'material-ui/Grid';
-import List, {ListSubheader} from 'material-ui/List';
-import Paper from 'material-ui/Paper';
-import Switch from 'material-ui/Switch';
 import TextField from 'material-ui/TextField';
-import Typography from 'material-ui/Typography';
 import Hidden from 'material-ui/Hidden';
 
-import FeatureCreator from './FeatureCreator.jsx';
-import FeatureTable from './FeatureTable.jsx';
-import Feature from './Feature.jsx';
 import { connector } from './store';
 
 let styles = theme => ({
@@ -32,18 +16,6 @@ let styles = theme => ({
     display: 'flex',
     backgroundColor: theme.palette.grey['100'],
     alignItems: 'flex-end'
-  },
-  heading: {
-    fontSize: theme.typography.pxToRem(15),
-    flexBasis: '33.33%',
-    flexShrink: 0,
-  },
-  secondaryHeading: {
-    fontSize: theme.typography.pxToRem(15),
-    color: theme.palette.text.secondary,
-  },
-  list: {
-    width: '100%'
   },
   newFeatureForm: {
     width: '100%',
@@ -61,7 +33,7 @@ let validChars = /^[a-z0-9_]$/;
 
 let prevent = e => e.preventDefault();
 
-class FeatureGroup extends React.Component {
+class FeatureCreator extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -116,15 +88,37 @@ class FeatureGroup extends React.Component {
     let { classes } = this.props;
     let exists = this.state.existingKeys.indexOf(this.state.newKey) !== -1;
     let allowCreate = this.state.newKey.length > 0 && !exists;
-    
+
     return (
-      <Paper>
-        <FeatureCreator />
-        <Divider />
-        <FeatureTable />
-      </Paper>
+      <div className={classes.expansion}>
+        <form
+          className={classes.newFeatureForm}
+          onSubmit={allowCreate ? this.addKey : prevent}>
+          <TextField
+            id="key"
+            label={exists ? "Flag with this key already exists" : "Add New Flag"}
+            placeholder="Key"
+            className={classes.textField}
+            margin="normal"
+            value={this.state.newKey}
+            onChange={this.inputChange}
+            autoComplete="off"
+            error={exists}
+          />
+        </form>
+        <Hidden xsDown implementation="css">
+          <Button
+            className={classes.addButton}
+            variant="raised"
+            color="secondary"
+            disabled={!allowCreate}
+            onClick={this.addKey}>
+            Add
+          </Button>
+        </Hidden>
+      </div>
     );
   }
 }
 
-export default connector(withStyles(styles)(FeatureGroup));
+export default connector(withStyles(styles)(FeatureCreator));

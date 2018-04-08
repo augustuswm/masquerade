@@ -11,13 +11,19 @@ const styles = theme => ({
     width: '100%',
     marginTop: theme.spacing.unit * 3,
     overflowX: 'auto',
-  },
+  }
 });
 
-// const lockTime = 86400000;
-// const lockTime = 60000;
-
 class FeatureTable extends React.Component {
+  constructor(props) {
+    super(props);
+    this.filter = this.filter.bind(this);
+  }
+
+  filter(flag) {
+    return flag.key.search(this.props.filterText) !== -1;
+  }
+
   render() {
     const { classes, flags } = this.props;
 
@@ -33,7 +39,7 @@ class FeatureTable extends React.Component {
           </TableRow>
         </TableHead>
         <TableBody>
-          {flags.map(f => <FeatureRow key={f.key} f={f} />)}
+          {flags.filter(this.filter).map(f => <FeatureRow key={f.key} f={f} />)}
         </TableBody>
       </Table>
     );

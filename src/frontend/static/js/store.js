@@ -13,7 +13,9 @@ let initialState = {
   refresh: 1000,
   apiKey: "",
   apiSecret: "",
-  pathMenuOpen: false
+  pathMenuOpen: false,
+  filterText: "",
+  appCreateModalOpen: false
 };
 
 function reducer(state = initialState, action) {
@@ -22,6 +24,7 @@ function reducer(state = initialState, action) {
       let flag = action.payload;
       let flags = state.flags.slice();
       flags.push(flag);
+      flags = flags.sort((a, b) => a.key > b.key);
 
       return Object.assign(
         {},
@@ -108,11 +111,35 @@ function reducer(state = initialState, action) {
       );
     }
 
+    case actions.LOGOUT: {
+      return Object.assign(
+        {},
+        state,
+        { apiKey: "", apiSecret:"" }
+      );
+    }    
+
     case actions.TOGGLE_MENU: {
       return Object.assign(
         {},
         state,
         { pathMenuOpen: action.payload }
+      );
+    }
+
+    case actions.UPDATE_FILTER: {
+      return Object.assign(
+        {},
+        state,
+        { filterText: action.payload }
+      );
+    }
+
+    case actions.TOGGLE_APP_CREATE: {
+      return Object.assign(
+        {},
+        state,
+        { appCreateModalOpen: action.payload }
       );
     }
 
@@ -128,9 +155,11 @@ const mapStateToProps = state => {
     apps: state.apps,
     flags: state.flags,
     refresh: state.refresh,
-    apiKey: state.key,
-    apiSecret: state.secret,
-    pathMenuOpen: state.pathMenuOpen
+    apiKey: state.apiKey,
+    apiSecret: state.apiSecret,
+    pathMenuOpen: state.pathMenuOpen,
+    filterText: state.filterText,
+    appCreateModalOpen: state.appCreateModalOpen
   };
 };
 
@@ -160,8 +189,23 @@ const mapDispatchToProps = dispatch => {
     updateSecret(secret) {
       dispatch(creators.updateSecret(secret));
     },
+    logout() {
+      dispatch(creators.logout());
+    },
     toggleMenu(state) {
       dispatch(creators.toggleMenu(state));
+    },
+    updateFilter(history, filterText) {
+      dispatch(creators.updateFilter(history, filterText));
+    },
+    toggleAppCreate(state) {
+      dispatch(creators.toggleAppCreate(state));
+    },
+    addApp(app, env) {
+      dispatch(creators.addApp(app, env));
+    },
+    bindHistory(history) {
+      history.listen(location => dispatch(creators.navigate(history, location)));
     }
   };
 };

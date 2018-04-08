@@ -9,5 +9,10 @@ export const UNLOAD_DATA = "UNLOAD_DATA";
 
 export const UPDATE_KEY = "UPDATE_KEY";
 export const UPDATE_SECRET = "UPDATE_SECRET";
+export const LOGOUT = "LOGOUT";
 
 export const TOGGLE_MENU = "TOGGLE_MENU";
+
+export const UPDATE_FILTER = "UPDATE_FILTER";
+
+export const TOGGLE_APP_CREATE = "TOGGLE_APP_CREATE";

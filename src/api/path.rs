@@ -12,14 +12,23 @@ use store::ThreadedStore;
 
 const PATH_KEY: &'static str = "paths";
 
+#[derive(Serialize, Deserialize)]
+struct FlagPathReq {
+    pub app: String,
+    pub env: String,
+}
+
 pub fn create(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
 
     req.concat2()
         .from_err()
         .and_then(move |body| {
-            if let Ok(f_path) = serde_json::from_str::<FlagPath>(str::from_utf8(&body).unwrap()) {
+            if let Ok(f_path_req) =
+                serde_json::from_str::<FlagPathReq>(str::from_utf8(&body).unwrap())
+            {
                 let path = PATH_KEY.to_string();
+                let f_path = FlagPath::new(f_path_req.app, f_path_req.env);
 
                 if let Ok(Some(_exists)) = state.paths().get(&path, f_path.as_ref()) {
                     Err(APIError::AlreadyExists)?

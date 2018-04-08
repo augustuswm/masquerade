@@ -9,7 +9,12 @@ import DeleteIcon from 'material-ui-icons/Delete';
 import { connector } from './store';
 
 const lockTime = 86400000;
-// const lockTime = 60000;
+
+const styles = theme => ({
+  wrap: {
+    wordBreak: 'break-all'
+  }
+});
 
 class FeatureRow extends React.Component {
   shouldComponentUpdate(nextProps, nextState) {
@@ -31,7 +36,7 @@ class FeatureRow extends React.Component {
 
     return (
       <TableRow key={f.key}>
-        <TableCell>{f.key}</TableCell>
+        <TableCell className={classes.wrap}>{f.key}</TableCell>
         <TableCell>{f.value.toString()}</TableCell>
         <TableCell>
           <Switch
@@ -39,7 +44,7 @@ class FeatureRow extends React.Component {
             checked={f.enabled}
           />
         </TableCell>
-        <TableCell>{f.updated ? updated.toLocaleString() : '--'}</TableCell>
+        <TableCell className={classes.wrap}>{f.updated ? updated.toLocaleString() : '--'}</TableCell>
         <TableCell>
           {f.updated && canDelete && 
             <IconButton className={classes.button} aria-label="">
@@ -59,4 +64,4 @@ FeatureRow.propTypes = {
   updateFlag: PropTypes.func.isRequired
 };
 
-export default connector(withStyles()(FeatureRow));
+export default connector(withStyles(styles)(FeatureRow));

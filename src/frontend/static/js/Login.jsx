@@ -26,9 +26,13 @@ const styles = theme => ({
     height: '100vh'
   },
   loginPanel: {
-    width: '100%',
     padding: theme.spacing.unit,
     display: 'flex',
+    flexDirection: 'column',
+    [theme.breakpoints.up('sm')]: {
+      width: '100%',
+      flexDirection: 'row'
+    },
     justifyContent: 'center',
     transition: 'width 0.5s linear 0s, opacity 0.25s linear 0.25s',
     opacity: 1

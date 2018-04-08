@@ -1,16 +1,24 @@
 import React from 'react';
 import { render } from 'react-dom';
 import { Provider } from 'react-redux';
+import { BrowserRouter, withRouter } from 'react-router-dom'
+
 import { withStyles } from 'material-ui/styles';
 import CssBaseline from 'material-ui/CssBaseline';
 import { createMuiTheme, MuiThemeProvider } from 'material-ui/styles';
-import AppBar from 'material-ui/AppBar';
-import Toolbar from 'material-ui/Toolbar';
-import Typography from 'material-ui/Typography';
-import Button from 'material-ui/Button';
-import IconButton from 'material-ui/IconButton';
-import MenuIcon from 'material-ui-icons/Menu';
 import Hidden from 'material-ui/Hidden';
+import Typography from 'material-ui/Typography';
+
+import { connector, store } from './store';
+import ErrorPrompt from './ErrorPrompt.jsx';
+import FeatureGroup from './FeatureGroup.jsx';
+import PathMenu from './PathMenu.jsx';
+import Login from './Login.jsx';
+import Updater from './Updater.jsx';
+import CreateMenu from './CreateMenu.jsx';
+import Header from './Header.jsx';
+import FeaturePanels from './FeaturePanels.jsx';
+import CreateApp from './CreateApp.jsx';
 
 const theme = createMuiTheme({
   palette: {
@@ -28,14 +36,6 @@ const theme = createMuiTheme({
     }
   }
 });
-
-import { connector, store } from './store';
-import ErrorPrompt from './ErrorPrompt.jsx';
-import FeatureGroup from './FeatureGroup.jsx';
-import PathMenu from './PathMenu.jsx';
-import Login from './Login.jsx';
-import Updater from './Updater.jsx';
-import CreateMenu from './CreateMenu.jsx';
 
 const Fragment = React.Fragment;
 
@@ -60,19 +60,22 @@ const styles = theme => ({
     padding: theme.spacing.unit * 3,
     overflowY: 'scroll'
   },
+  mainPrompt: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  prompt: {
+    color: theme.palette.grey['200']
+  },
   hidden: {
     height: 0,
     opacity: 0,
     overflow: 'hidden'
   },
   body: {
-    display: 'flex'
-  },
-  top: {
-    zIndex: 2000
-  },
-  title: {
-    flex: 1
+    display: 'flex',
+    flexGrow: 1
   }
 });
 
@@ -85,7 +88,8 @@ class App extends React.Component {
   }
 
   componentDidMount() {
-    this.props.loadApps()
+    this.props.loadApps();
+    this.props.bindHistory(this.props.history);
   }
 
   isSelected(key) {
@@ -102,33 +106,40 @@ class App extends React.Component {
     }
   }
 
+  prompt() {
+    return <Typography className={this.props.classes.prompt} variant="display2">
+      Banner
+    </Typography>;
+  }
+
+  features() {
+    return <Fragment>
+      <Hidden xsDown>
+        <FeatureGroup />
+      </Hidden>
+      <Hidden smUp>
+        <FeaturePanels />
+      </Hidden>
+    </Fragment>;
+  }
+
   render() {
-    let { classes, app, env, apps, flags, toggleMenu } = this.props;
-    console.log(toggleMenu)
+    let { classes, apps, app, env } = this.props;
+    let hasSelected = app && env;
+    let contentClass = classes.content + (hasSelected ? '' : ' ' + classes.mainPrompt);
 
     return (
       <Fragment>
         <Login />
+        <CreateApp />
         <div className={apps.length > 0 ? classes.root : classes.hidden}>
-          <AppBar position="static" className={classes.top}>
-            <Toolbar>
-              <Typography variant="title" color="inherit" className={classes.title}>
-                {app} : {env}
-              </Typography>
-              <Button color="inherit">Account</Button>
-              <Hidden mdUp>
-                <IconButton color="inherit" aria-label="Apps" onClick={() => toggleMenu(true)}>
-                  <MenuIcon />
-                </IconButton>
-              </Hidden>
-            </Toolbar>
-          </AppBar>
+          <Header />
           <div className={classes.body}>
             <PathMenu
               menuToggle={() => {}}
               open={true} />
-            <main className={classes.content}>
-              <FeatureGroup />
+            <main className={contentClass}>
+              {hasSelected ? this.features() : this.prompt()}
             </main>
           </div>
           <CreateMenu />
@@ -138,41 +149,18 @@ class App extends React.Component {
   }
 }
 
-// {
-//   this.props.flags.map(group => {
-//     let key = `${group.app}::${group.env}`;
-//     let selected = this.isSelected(key);
-//     let adder = key => {
-//       this.props.onAdd(group.app, group.env, key);
-//     };
-//     let remover = key => {
-//       this.props.onDelete(group.app, group.env, key);
-//     };
-
-//     return ;
-//   })
-// }
-
-let StyledApp = connector(withStyles(styles)(App));
-
-// function Run() {
-//   return (
-//     <ErrorPrompt>
-//       <Store baseUrl="/api/v1">
-//         <StyledApp />
-//       </Store>
-//     </ErrorPrompt>
-//   );
-// }
+let StyledApp = withRouter(connector(withStyles(styles)(App)));
 
 function Run() {
   return (
     <ErrorPrompt>
       <Provider store={store}>
-        <MuiThemeProvider theme={theme}>
-          <Updater />
-          <StyledApp />
-        </MuiThemeProvider>
+        <BrowserRouter>
+          <MuiThemeProvider theme={theme}>
+            <Updater />
+            <StyledApp />
+          </MuiThemeProvider>
+        </BrowserRouter>
       </Provider>
     </ErrorPrompt>
   );

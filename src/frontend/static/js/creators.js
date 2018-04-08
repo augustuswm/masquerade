@@ -59,6 +59,12 @@ export function deleteFlag(key) {
   };
 }
 
+function sortApps(apps) {
+  return apps.sort((a, b) => {
+    return a.path.localeCompare(b.path);
+  });
+}
+
 export function loadApps() {
   return function(dispatch, getState) {
     let { baseUrl, key, secret } = getState();
@@ -71,21 +77,9 @@ export function loadApps() {
           throw "No apps available";
         }
 
-        apps = apps.sort((a, b) => {
-          if (a.path !== b.path) {
-            return a.path > b.path;
-          }
-
-          return 0;
-        });
+        sortApps(apps);
 
         dispatch({ type: actions.LOAD_APPS, payload: apps });
-
-        // Load the first returned app as default
-        if (apps.length > 0) {
-          let firstApp = apps[0];
-          selectApp(firstApp.app, firstApp.env)(dispatch, getState);
-        }
       }).catch(function(err) {
         dispatch({ type: actions.UNLOAD_DATA, payload: undefined });
       });
@@ -94,13 +88,21 @@ export function loadApps() {
 
 export function loadFlags(app, env) {
   return function(dispatch, getState) {
-    let { baseUrl } = getState();
-    let url = `${baseUrl}/${app}/${env}/flags/`;
+    if (app && env) {
+      let { baseUrl } = getState();
+      let url = `${baseUrl}/${app}/${env}/flags/`;
 
-    axios.get(url, { headers: auth(getState) })
-      .then(function(resp) {
-        dispatch({ type: actions.LOAD_DATA, payload: resp.data });
-      });
+      axios.get(url, { headers: auth(getState) })
+        .then(function(resp) {
+          dispatch({ type: actions.LOAD_DATA, payload: resp.data });
+        });
+    }
+  };
+}
+
+export function clearFlags() {
+  return function(dispatch, getState) {
+    dispatch({ type: actions.LOAD_DATA, payload: [] });
   };
 }
 
@@ -108,6 +110,13 @@ export function selectApp(app, env) {
   return function(dispatch, getState) {
     dispatch({ type: actions.SELECT_APP, payload: { app, env } });
     loadFlags(app, env)(dispatch, getState);
+  };
+}
+
+export function clearApp() {
+  return function(dispatch, getState) {
+    dispatch({ type: actions.SELECT_APP, payload: { app: "", env: "" } });
+    clearFlags()(dispatch, getState);
   };
 }
 
@@ -154,6 +163,87 @@ export function updateSecret(secret) {
   }
 }
 
+export function logout() {
+  return function(dispatch, getState) {
+    dispatch({ type: actions.UNLOAD_DATA, payload: undefined });
+    dispatch({ type: actions.LOGOUT, payload: undefined });
+  }
+}
+
 export function toggleMenu(state) {
   return { type: actions.TOGGLE_MENU, payload: state };
+}
+
+export function updateFilter(history, filterText) {
+  return function (dispatch, getState) {
+    dispatch({ type: actions.UPDATE_FILTER, payload: filterText });
+    history.replace(history.location.pathname + (filterText ? `?s=${filterText}` : ''));
+  };
+}
+
+export function toggleAppCreate(state) {
+  return { type: actions.TOGGLE_APP_CREATE, payload: state }
+}
+
+export function addApp(app, env) {
+  return function(dispatch, getState) {
+    let { baseUrl } = getState();
+    let url = `${baseUrl}/path/`;
+    let a = { app, env };
+
+    dispatch(toggleAppCreate(false));
+
+    axios.post(url, a, { headers: auth(getState) })
+      .catch(err => {})
+      .then(() => loadApps()(dispatch, getState));
+  };
+}
+
+function isAppDisplayUrl(path) {
+  let parts = path.split('/');
+  return parts.length === 4 && parts[0] === "" && parts[3] === "";
+}
+
+function getAppParts(path) {
+  let parts = path.split('/');
+
+  if (parts.length === 4) {
+    return { app: parts[1], env: parts[2] };
+  }
+
+  return null;
+}
+
+function hasFilterTerm(query) {
+  return query.substr(1, 2) === "s=";
+}
+
+function getFilterTerm(query) {
+  return query.substr(3);
+}
+
+export function navigate(history, location) {
+  return function(dispatch, getState) {
+    if (isAppDisplayUrl(location.pathname)) {
+      let { app, env } = getAppParts(location.pathname);
+
+      if (getState().app !== app || getState().env !== env) {
+        selectApp(app, env)(dispatch, getState);
+      }
+    } else {
+      clearApp()(dispatch, getState);
+    }
+
+    if (hasFilterTerm(location.search)) {
+      let term = getFilterTerm(location.search);
+
+      if (getState().filterText !== term) {
+        updateFilter(history, term)(dispatch, getState);
+      }
+    } else {
+      if (getState().filterText !== "") {
+        updateFilter(history, "")(dispatch, getState);
+      }
+    }
+  }
 }

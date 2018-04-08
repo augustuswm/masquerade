@@ -1,5 +1,7 @@
 import React from "react";
 import PropTypes from "prop-types";
+import { Link } from "react-router-dom";
+
 import { withStyles } from "material-ui/styles";
 import Collapse from "material-ui/transitions/Collapse";
 import Divider from 'material-ui/Divider';
@@ -18,6 +20,9 @@ const styles = theme => ({
   },
   selected: {
     backgroundColor: theme.palette.grey['200'],
+  },
+  appLink: {
+    textDecoration: 'none'
   }
 });
 
@@ -30,16 +35,23 @@ class PathList extends React.Component {
         {apps.map((a, i) => {
           let selected = a.app === app && a.env === env;
 
-          return <ListItem
-            key={a.path}
-            button
-            default={i === 0}
-            onClick={() => { toggleMenu(false); selectApp(a.app, a.env); }}
-            className={selected ? classes.selected : ""}>
-            <ListItemText
-              primary={a.app}
-              secondary={a.env}/>
-          </ListItem>
+          return (
+            <Link
+              className={classes.appLink}
+              key={a.path}
+              to={`/${a.app}/${a.env}/`}
+              replace={selected}>
+              <ListItem
+                button
+                default={i === 0}
+                onClick={() => toggleMenu(false)}
+                className={selected ? classes.selected : ""}>
+                <ListItemText
+                  primary={a.app}
+                  secondary={a.env}/>
+              </ListItem>
+            </Link>
+          );
         })}
       </div>
     );

@@ -47,7 +47,7 @@ class CreateMenu extends React.Component {
   }
 
   render() {
-    let { classes } = this.props;
+    let { classes, toggleAppCreate } = this.props;
 
     return (
       <SpeedDial
@@ -65,6 +65,7 @@ class CreateMenu extends React.Component {
           key="Add App"
           icon={<LibraryAddIcon />}
           tooltipTitle={"Add App"}
+          onClick={() => toggleAppCreate(true)}
         />
       </SpeedDial>
     );
