@@ -8,17 +8,14 @@ use store::ThreadedStore;
 use user::User;
 
 mod admin;
-mod api;
+// mod api;
+mod app;
 mod auth;
 mod error;
 mod flag;
-mod frontend;
+// mod frontend;
 mod path;
 mod state;
-
-fn index(req: HttpRequest) -> &'static str {
-    "Hello world!"
-}
 
 type State = Arc<state::AppState>;
 
@@ -33,7 +30,7 @@ where
     //     .bind("127.0.0.1:8088")
     //     .expect("Can not bind to 127.0.0.1:8088")
     //     .run();
-    HttpServer::new(move || vec![api::app(state.clone()), frontend::app(state.clone())])
+    HttpServer::new(move || vec![app::api(state.clone()), app::frontend(state.clone())])
         .bind("127.0.0.1:8088")
         .expect("Can not bind to 127.0.0.1:8088")
         .run();

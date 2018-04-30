@@ -29,15 +29,14 @@ const styles = theme => ({
     flexGrow: 1
   },
   deleteItem: {
-    marginRight: theme.spacing.unit,
     flexGrow: 1
   },
   toggleItem: {
-    marginLeft: theme.spacing.unit,
     flexGrow: 1
   },
   toggles: {
-    marginTop: theme.spacing.unit
+    marginTop: theme.spacing.unit,
+    textAlign: 'center'
   }
 });
 
@@ -101,7 +100,7 @@ class FeaturePanels extends React.Component {
                   <Grid item xs={6}>
                     <Typography variant="caption">{flag.enabled.toString()}</Typography>
                   </Grid>
-                  <Grid className={classes.toggles} item xs={12}>
+                  <Grid className={classes.toggles} item xs={6}>
                     <Button
                       className={classes.deleteItem}
                       color="secondary"
@@ -110,6 +109,8 @@ class FeaturePanels extends React.Component {
                       onClick={() => deleteFlag(flag.key)}>
                       {canDelete ? "Delete" : `${hoursUntilDelete}H ${minutesUntilDelete}M`}
                     </Button>
+                  </Grid>
+                  <Grid className={classes.toggles} item xs={6}>
                     <Button
                       className={classes.toggleItem}
                       color="secondary"

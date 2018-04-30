@@ -1,5 +1,3 @@
-#[cfg(feature = "mongo-backend")]
-use bson;
 #[cfg(feature = "redis-backend")]
 use redis::{ErrorKind, FromRedisValue, RedisResult, ToRedisArgs, Value as RedisValue};
 #[cfg(feature = "dynamo-backend")]
@@ -10,15 +8,14 @@ use serde_json;
 #[cfg(feature = "dynamo-backend")]
 use std::collections::HashMap;
 
-use error::BannerError;
 #[cfg(feature = "dynamo-backend")]
 use storage::dynamo::{DynamoError, FromAttrMap};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
-    uuid: String,
-    key: String,
-    secret: String,
+    pub uuid: String,
+    pub key: String,
+    pub secret: String,
     is_admin: bool,
 }
 

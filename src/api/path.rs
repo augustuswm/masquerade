@@ -6,9 +6,7 @@ use std::str;
 
 use api::State;
 use api::error::APIError;
-use error::BannerError;
 use flag::FlagPath;
-use store::ThreadedStore;
 
 const PATH_KEY: &'static str = "paths";
 

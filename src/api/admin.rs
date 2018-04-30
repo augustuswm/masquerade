@@ -1,4 +1,4 @@
-use http::{header, StatusCode};
+use http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, Result};
 use actix_web::middleware::{Middleware, Response, Started};
 
@@ -26,7 +26,7 @@ impl<S> Middleware<S> for Admin {
         }
     }
 
-    fn response(&self, req: &mut HttpRequest<S>, mut resp: HttpResponse) -> Result<Response> {
+    fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
         Ok(Response::Done(resp))
     }
 }

@@ -10,11 +10,13 @@ pub enum APIError {
     FailedToAccessParams,
     FailedToAccessStore,
     FailedToFind,
+    FailedToParseAuth,
     FailedToParseBody,
     FailedToParseParams,
     FailedToSerialize,
     FailedToWriteToStore,
     InvalidFlag,
+    Unauthorized,
 }
 
 impl APIError {
@@ -24,11 +26,13 @@ impl APIError {
             &APIError::FailedToAccessParams => StatusCode::BAD_REQUEST,
             &APIError::FailedToAccessStore => StatusCode::INTERNAL_SERVER_ERROR,
             &APIError::FailedToFind => StatusCode::NOT_FOUND,
+            &APIError::FailedToParseAuth => StatusCode::BAD_REQUEST,
             &APIError::FailedToParseBody => StatusCode::BAD_REQUEST,
             &APIError::FailedToParseParams => StatusCode::BAD_REQUEST,
             &APIError::FailedToSerialize => StatusCode::INTERNAL_SERVER_ERROR,
             &APIError::FailedToWriteToStore => StatusCode::INTERNAL_SERVER_ERROR,
             &APIError::InvalidFlag => StatusCode::BAD_REQUEST,
+            &APIError::Unauthorized => StatusCode::UNAUTHORIZED,
         }
     }
 }
@@ -52,7 +56,7 @@ impl ResponseError for APIError {
 }
 
 impl From<PayloadError> for APIError {
-    fn from(err: PayloadError) -> APIError {
+    fn from(_: PayloadError) -> APIError {
         APIError::FailedToParseBody
     }
 }

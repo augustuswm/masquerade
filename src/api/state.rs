@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use error::BannerError;
 use flag::{Flag, FlagPath};
 use store::ThreadedStore;

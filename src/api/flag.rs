@@ -6,9 +6,7 @@ use std::str;
 
 use api::State;
 use api::error::APIError;
-use error::BannerError;
 use flag::{Flag, FlagPath};
-use store::ThreadedStore;
 
 struct FlagReq {
     pub path: FlagPath,

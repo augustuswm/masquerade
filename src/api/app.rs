@@ -1,19 +1,16 @@
-use actix_web::{Application, Method};
-use actix_web::middleware::{CookieSessionBackend, Logger, SessionStorage};
+use actix_web::{fs, Application, Method};
+use actix_web::middleware::Logger;
 
-use api::auth::CookieAuth;
+use api::auth;
 use api::flag;
 use api::path;
 use api::State;
 
-pub fn app(state: State) -> Application<State> {
+pub fn api(state: State) -> Application<State> {
     Application::with_state(state)
         .prefix("/api/v1")
         .middleware(Logger::default())
-        .middleware(SessionStorage::new(
-            CookieSessionBackend::build(&[0; 32]).secure(false).finish(),
-        ))
-        .middleware(CookieAuth)
+        .middleware(auth::BasicAuth)
         .resource("/{app}/{env}/flag/", |r| {
             r.method(Method::POST).a(flag::create)
         })
@@ -27,4 +24,13 @@ pub fn app(state: State) -> Application<State> {
         })
         .resource("/path/", |r| r.method(Method::POST).a(path::create))
         .resource("/paths/", |r| r.method(Method::GET).a(path::all))
+}
+
+pub fn frontend(state: State) -> Application<State> {
+    Application::with_state(state)
+        .middleware(Logger::default())
+        .handler(
+            "/",
+            fs::StaticFiles::new("src/frontend/static/", false).index_file("index.html"),
+        )
 }

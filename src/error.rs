@@ -52,7 +52,7 @@ impl Error for BannerError {
 }
 
 impl fmt::Display for BannerError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, _: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         Ok(())
     }
 }

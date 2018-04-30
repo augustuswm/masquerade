@@ -78,7 +78,7 @@ mod tests {
         let flags = vec![f("f1", false), f("f2", true)];
 
         for flag in flags.into_iter() {
-            store.upsert(&path(), flag.key(), &flag);
+            let _ = store.upsert(&path(), flag.key(), &flag);
         }
 
         store

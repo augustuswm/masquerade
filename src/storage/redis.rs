@@ -108,10 +108,6 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
 
         if item_ser[0].as_slice() != FAIL {
             let res: RedisResult<u8> = conn.hset(self.full_path(path), key.to_string(), item_ser);
-
-            self.all_cache.remove(ALL_CACHE);
-            self.cache.insert(self.full_key(path, key), item);
-
             res.map(|_| ()).map_err(BannerError::RedisFailure)
         } else {
             Err(BannerError::FailedToSerializeItem)
@@ -151,39 +147,33 @@ where
     type Error = BannerError;
 
     fn get(&self, path: &P, key: &str) -> Result<Option<T>, BannerError> {
-        self.conn().map(|conn| self.get_raw(path, key, &conn))
-        // match self.cache.get(self.full_key(path, key).as_str()) {
-        //     Ok(Some(item)) => Ok(Some(item)),
-        //     _ => self.conn().map(|conn| {
-        //         let item = self.get_raw(path, key, &conn);
+        match self.cache.get(self.full_key(path, key).as_str()) {
+            Ok(Some(item)) => Ok(Some(item)),
+            _ => self.conn().map(|conn| {
+                let item = self.get_raw(path, key, &conn);
 
-        //         if let Some(ref val) = item {
-        //             self.cache.insert(self.full_key(path, key), val);
-        //         }
+                if let Some(ref val) = item {
+                    let _ = self.cache.insert(self.full_key(path, key), val);
+                }
 
-        //         item
-        //     }),
-        // }
+                item
+            }),
+        }
     }
 
     fn get_all(&self, path: &P) -> Result<HashMap<String, T>, BannerError> {
-        self.conn()?
-            .hgetall(self.full_path(path))
-            .map_err(BannerError::RedisFailure)
-        // let r = self.all_cache
-        //     .get(ALL_CACHE)
-        //     .and_then(|map| map.ok_or(BannerError::AllCacheMissing))
-        //     .or_else(|_| {
-        //         self.conn()?
-        //             .hgetall(self.full_path(path))
-        //             .map(|map: HashMap<String, T>| {
-        //                 self.all_cache.insert(ALL_CACHE, &map);
-        //                 map
-        //             })
-        //             .map_err(BannerError::RedisFailure)
-        //     });
-
-        // r
+        self.all_cache
+            .get(ALL_CACHE)
+            .and_then(|map| map.ok_or(BannerError::AllCacheMissing))
+            .or_else(|_| {
+                self.conn()?
+                    .hgetall(self.full_path(path))
+                    .map(|map: HashMap<String, T>| {
+                        let _ = self.all_cache.insert(ALL_CACHE, &map);
+                        map
+                    })
+                    .map_err(BannerError::RedisFailure)
+            })
     }
 
     fn delete(&self, path: &P, key: &str) -> Result<Option<T>, BannerError> {
@@ -193,10 +183,10 @@ where
 
         let lookup = self.get(path, key);
         let store_res = self.delete_raw(path, key, &conn);
-        self.cleanup::<()>(&conn);
+        let _ = self.cleanup::<()>(&conn);
 
         store_res.and_then(|_| {
-            self.all_cache.clear();
+            let _ = self.all_cache.clear();
             self.cache
                 .remove(self.full_key(path, key).as_str())
                 .and_then(|_| lookup)
@@ -211,16 +201,14 @@ where
         let lookup = self.get(path, key);
 
         let store_res = self.put_raw(path, key, item, &conn);
-        self.cleanup::<()>(&conn);
+        let _ = self.cleanup::<()>(&conn);
 
-        lookup
-
-        // store_res.and_then(|_| {
-        //     self.all_cache.clear();
-        //     self.cache
-        //         .insert(self.full_key(path, key), item)
-        //         .and_then(|_| lookup)
-        // })
+        store_res.and_then(|_| {
+            let _ = self.all_cache.clear();
+            self.cache
+                .insert(self.full_key(path, key), item)
+                .and_then(|_| lookup)
+        })
     }
 }
 

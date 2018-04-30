@@ -1,5 +1,8 @@
+// #![allow(dead_code)]
+
 extern crate actix;
 extern crate actix_web;
+extern crate base64;
 #[macro_use]
 #[cfg(feature = "mongo-backend")]
 extern crate bson;
@@ -106,7 +109,7 @@ fn main() {
     let _ = flags.upsert(&a, "f1", &flag);
     let _ = users.upsert(
         &"users".to_string(),
-        "ZGV2OmRldg==",
+        "dev",
         &user::User::new(
             "user-id".to_string(),
             "dev".to_string(),
