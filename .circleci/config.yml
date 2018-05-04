@@ -100,4 +100,18 @@ workflows:
   build:
     jobs:
       - mem-build
+      - mem-docker:
+          requires:
+            - mem-build
+          filters:
+            branches:
+              only:
+                - master
       - redis-build
+      - redis-docker:
+          requires:
+            - redis-build
+          filters:
+            branches:
+              only:
+                - master
