@@ -1,25 +1,47 @@
 version: 2.0
 jobs:
-  mem-test:
+  mem-build:
     docker:
-      - image: clux/muslrust
+      - image: rust
     steps:
       - checkout
       - run:
           name: Test
           command: cargo test --features mem-backend
-  mongo-test:
-    docker:
-      - image: clux/muslrust
-      - image: circleci/mongo
-    steps:
-      - checkout
       - run:
-          name: Test
-          command: cargo test --features mongo-backend
-  redis-test:
+          name: Build
+          command: |
+            cargo build --release --features mem-backend
+            echo $CIRCLE_SHA1 > .circle-sha
+      - run:
+          name: Install Node
+          command: |
+            curl -sL https://deb.nodesource.com/setup_10.x | -E bash -
+            apt-get install -y nodejs
+      - save_cache:
+          key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-mem
+          paths:
+            - ~/project/www
+            - ~/project/target/release
+
+  mem-docker:
     docker:
-      - image: clux/muslrust
+      - image: docker:latest
+    steps:
+      - run: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-mem
+      - setup_remote_docker
+      - run:
+          command: |
+            docker build -t masquerade .
+            docker tag masquerade:mem augustuswm/masquerade:mem
+            docker login -u $DOCKER_USER -p $DOCKER_PASS
+            docker push augustuswm/masquerade:mem
+
+  redis-build:
+    docker:
+      - image: rust
       - image: redis
     steps:
       - checkout
@@ -34,11 +56,38 @@ jobs:
       - run:
           name: Test
           command: cargo test --features redis-backend
+      - run:
+          name: Build
+          command: cargo build --release --features redis-backend
+      - run:
+          name: Install Node
+          command: |
+            curl -sL https://deb.nodesource.com/setup_10.x | -E bash -
+            apt-get install -y nodejs
+      - save_cache:
+          key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-redis
+          paths:
+            - ~/project/www
+            - ~/project/target/release
+
+  redis-docker:
+    docker:
+      - image: docker:latest
+    steps:
+      - run: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-redis
+      - setup_remote_docker
+      - run:
+          command: |
+            docker build -t masquerade .
+            docker tag masquerade:redis augustuswm/masquerade:redis
+            docker login -u $DOCKER_USER -p $DOCKER_PASS
+            docker push augustuswm/masquerade:redis
 
 workflows:
   version: 2
-  test:
+  build:
     jobs:
-      - mem-test
-      - mongo-test
-      - redis-test
+      - mem-build
+      - redis-build

@@ -8,6 +8,6 @@ pub fn app(state: State) -> Application<State> {
         .middleware(Logger::default())
         .handler(
             "/",
-            fs::StaticFiles::new("src/frontend/static/", false).index_file("index.html"),
+            fs::StaticFiles::new("www/", false).index_file("index.html"),
         )
 }

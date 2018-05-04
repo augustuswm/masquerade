@@ -1,9 +1,10 @@
 var path = require('path');
 var webpack = require('webpack');
+var CopyWebpackPlugin = require('copy-webpack-plugin')
 
 module.exports = {
   entry: './src/frontend/static/js/index.jsx',
-  output: { path: __dirname + '/src/frontend/static/dist/', filename: 'bundle.js' },
+  output: { path: __dirname + '/www/dist/', filename: 'bundle.js' },
   module: {
     loaders: [
       {
@@ -17,4 +18,9 @@ module.exports = {
       }
     ]
   },
+  plugins: [
+    new CopyWebpackPlugin([
+      { from:  __dirname + '/src/frontend/static/index.html', to: __dirname + '/www/index.html' }
+    ])
+  ]
 };
