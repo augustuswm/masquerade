@@ -17,6 +17,7 @@ extern crate log;
 extern crate mongo_driver;
 #[cfg(feature = "redis-backend")]
 extern crate redis;
+extern crate ring;
 #[cfg(feature = "dynamo-backend")]
 extern crate rusoto_core;
 #[cfg(feature = "dynamo-backend")]
@@ -84,39 +85,39 @@ fn main() {
 
     let flag = flag::Flag::new("f1", flag::FlagValue::Bool(true), 1, true);
 
-    let a = "tpt$prod".parse::<flag::FlagPath>().unwrap();
-    let b = "tpt$staging".parse::<flag::FlagPath>().unwrap();
-    let c = "nextavenue$prod".parse::<flag::FlagPath>().unwrap();
-    let d = "nextavenue$staging".parse::<flag::FlagPath>().unwrap();
-    let e = "rewire$prod".parse::<flag::FlagPath>().unwrap();
-    let f = "rewire$staging".parse::<flag::FlagPath>().unwrap();
-    let g = "id$prod".parse::<flag::FlagPath>().unwrap();
-    let h = "id$staging".parse::<flag::FlagPath>().unwrap();
-    let i = "mm-api$prod".parse::<flag::FlagPath>().unwrap();
-    let j = "mm-api$staging".parse::<flag::FlagPath>().unwrap();
+    let u = user::User::new(
+        "user-id".to_string(),
+        "dev".to_string(),
+        "dev".to_string(),
+        true,
+    );
 
-    let _ = apps.upsert(&"paths".to_string(), "tpt$prod", &a);
-    let _ = apps.upsert(&"paths".to_string(), "tpt$staging", &b);
-    let _ = apps.upsert(&"paths".to_string(), "nextavenue$prod", &c);
-    let _ = apps.upsert(&"paths".to_string(), "nextavenue$staging", &d);
-    let _ = apps.upsert(&"paths".to_string(), "rewire$prod", &e);
-    let _ = apps.upsert(&"paths".to_string(), "rewire$staging", &f);
-    let _ = apps.upsert(&"paths".to_string(), "id$prod", &g);
-    let _ = apps.upsert(&"paths".to_string(), "id$staging", &h);
-    let _ = apps.upsert(&"paths".to_string(), "mm-api$prod", &i);
-    let _ = apps.upsert(&"paths".to_string(), "mm-api$staging", &j);
+    let a = (u.uuid.clone() + ":tpt:prod")
+        .parse::<flag::FlagPath>()
+        .unwrap();
+    // let b = "tpt:staging".parse::<flag::FlagPath>().unwrap();
+    // let c = "nextavenue:prod".parse::<flag::FlagPath>().unwrap();
+    // let d = "nextavenue:staging".parse::<flag::FlagPath>().unwrap();
+    // let e = "rewire:prod".parse::<flag::FlagPath>().unwrap();
+    // let f = "rewire:staging".parse::<flag::FlagPath>().unwrap();
+    // let g = "id:prod".parse::<flag::FlagPath>().unwrap();
+    // let h = "id:staging".parse::<flag::FlagPath>().unwrap();
+    // let i = "mm-api:prod".parse::<flag::FlagPath>().unwrap();
+    // let j = "mm-api:staging".parse::<flag::FlagPath>().unwrap();
+
+    let _ = apps.upsert(&"paths".to_string(), &(u.uuid.clone() + ":tpt:prod"), &a);
+    // let _ = apps.upsert(&"paths".to_string(), "tpt:staging", &b);
+    // let _ = apps.upsert(&"paths".to_string(), "nextavenue:prod", &c);
+    // let _ = apps.upsert(&"paths".to_string(), "nextavenue:staging", &d);
+    // let _ = apps.upsert(&"paths".to_string(), "rewire:prod", &e);
+    // let _ = apps.upsert(&"paths".to_string(), "rewire:staging", &f);
+    // let _ = apps.upsert(&"paths".to_string(), "id:prod", &g);
+    // let _ = apps.upsert(&"paths".to_string(), "id:staging", &h);
+    // let _ = apps.upsert(&"paths".to_string(), "mm-api:prod", &i);
+    // let _ = apps.upsert(&"paths".to_string(), "mm-api:staging", &j);
 
     let _ = flags.upsert(&a, "f1", &flag);
-    let _ = users.upsert(
-        &"users".to_string(),
-        "dev",
-        &user::User::new(
-            "user-id".to_string(),
-            "dev".to_string(),
-            "dev".to_string(),
-            true,
-        ),
-    );
+    let _ = users.upsert(&"users".to_string(), "dev", &u);
 
     api::boot(flags, apps, users);
 

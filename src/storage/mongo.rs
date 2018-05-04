@@ -241,7 +241,7 @@ mod tests {
 
     use super::*;
 
-    const PATH: &'static str = "app$";
+    const PATH: &'static str = "the-owner-uuid-value:app:";
 
     fn f<S: Into<String>>(key: S, enabled: bool) -> Flag {
         Flag::new(key, FlagValue::Bool(true), 1, enabled)

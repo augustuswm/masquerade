@@ -7,6 +7,7 @@ use std::str;
 use api::State;
 use api::error::APIError;
 use flag::{Flag, FlagPath};
+use user::User;
 
 struct FlagReq {
     pub path: FlagPath,
@@ -17,17 +18,22 @@ impl FlagReq {
     pub fn from_req(req: &HttpRequest<State>) -> Result<FlagReq, APIError> {
         let params = req.match_info();
 
-        if let (Some(app), Some(env)) = (params.get("app"), params.get("env")) {
-            Ok(FlagReq {
-                path: FlagPath {
-                    app: app.into(),
-                    env: env.into(),
-                    path: [app, "$", env].concat(),
-                },
-                key: params.get("key").map(|s| s.into()),
-            })
+        if let Some(user) = req.clone().extensions().get::<User>() {
+            if let (Some(app), Some(env)) = (params.get("app"), params.get("env")) {
+                Ok(FlagReq {
+                    path: FlagPath {
+                        owner: user.uuid.clone(),
+                        app: app.into(),
+                        env: env.into(),
+                        path: FlagPath::make_path(&user.uuid, app, env),
+                    },
+                    key: params.get("key").map(|s| s.into()),
+                })
+            } else {
+                Err(APIError::FailedToParseParams)
+            }
         } else {
-            Err(APIError::FailedToParseParams)
+            Err(APIError::Unauthorized)
         }
     }
 }

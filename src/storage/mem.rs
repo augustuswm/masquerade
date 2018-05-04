@@ -26,13 +26,13 @@ where
     type Error = BannerError;
 
     fn get(&self, path: &P, key: &str) -> Result<Option<T>, BannerError> {
-        self.data.get([path.as_ref(), "$", key].concat().as_str())
+        self.data.get([path.as_ref(), "/", key].concat().as_str())
     }
 
     fn get_all(&self, path: &P) -> Result<HashMap<String, T>, BannerError> {
         self.data.get_all().map(|map| {
             let mut ret_map: HashMap<String, T> = HashMap::new();
-            let pref: String = [path.as_ref(), "$"].concat();
+            let pref: String = [path.as_ref(), "/"].concat();
 
             for (k, v) in map.iter() {
                 if k.starts_with(path.as_ref()) {
@@ -47,12 +47,12 @@ where
 
     fn delete(&self, path: &P, key: &str) -> Result<Option<T>, BannerError> {
         self.data
-            .remove([path.as_ref(), "$", key].concat().as_str())
+            .remove([path.as_ref(), "/", key].concat().as_str())
     }
 
     fn upsert(&self, path: &P, key: &str, item: &T) -> Result<Option<T>, BannerError> {
         self.data
-            .insert([path.as_ref(), "$", key].concat().as_str(), item)
+            .insert([path.as_ref(), "/", key].concat().as_str(), item)
     }
 }
 
@@ -63,7 +63,7 @@ mod tests {
 
     use super::*;
 
-    const PATH: &'static str = "app$env";
+    const PATH: &'static str = "the-owner-uuid-value:app:env";
 
     fn f<S: Into<String>>(key: S, enabled: bool) -> Flag {
         Flag::new(key, FlagValue::Bool(true), 1, enabled)

@@ -16,28 +16,49 @@ use error::BannerError;
 #[cfg(feature = "dynamo-backend")]
 use storage::dynamo::{DynamoError, FromAttrMap};
 
+const PATH_SEP: &'static str = ":";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlagPath {
+    pub owner: String,
     pub app: String,
     pub env: String,
     pub path: String,
 }
 
 impl FlagPath {
-    pub fn new<T, S>(app: T, env: S) -> FlagPath
+    pub fn new<T, S, U>(owner: T, app: S, env: U) -> FlagPath
     where
         T: Into<String>,
         S: Into<String>,
+        U: Into<String>,
     {
+        let o = owner.into();
         let a = app.into();
         let e = env.into();
-        let path = [a.as_str(), "$", e.as_str()].concat();
+        let path = FlagPath::make_path(&o, &a, &e);
 
         FlagPath {
+            owner: o,
             app: a,
             env: e,
             path: path,
         }
+    }
+
+    pub fn make_path<T, S, U>(owner: T, app: S, env: U) -> String
+    where
+        T: AsRef<str>,
+        S: AsRef<str>,
+        U: AsRef<str>,
+    {
+        [
+            owner.as_ref(),
+            PATH_SEP,
+            app.as_ref(),
+            PATH_SEP,
+            env.as_ref(),
+        ].concat()
     }
 }
 
@@ -51,10 +72,10 @@ impl FromStr for FlagPath {
     type Err = BannerError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = s.split("$").collect();
+        let parts: Vec<&str> = s.split(PATH_SEP).collect();
 
-        if parts.len() == 2 {
-            Ok(FlagPath::new(parts[0], parts[1]))
+        if parts.len() == 3 {
+            Ok(FlagPath::new(parts[0], parts[1], parts[2]))
         } else {
             Err(BannerError::FailedToParsePath)
         }

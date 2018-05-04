@@ -9,7 +9,7 @@ use hash_cache::HashCache;
 use store::Store;
 
 const FAIL: &'static [u8; 4] = &[102, 97, 105, 108];
-const ALL_CACHE: &'static str = "$all_flags$";
+const ALL_CACHE: &'static str = ":all_flags$";
 
 #[derive(Debug)]
 pub struct RedisStore<T> {
@@ -74,7 +74,7 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
     where
         S: Into<String>,
     {
-        prefix.map(|p| p.into()).unwrap_or("banner".into()) + "$features"
+        prefix.map(|p| p.into()).unwrap_or("banner".into()) + ":features"
     }
 
     fn conn(&self) -> RedisStoreResult<Connection> {
@@ -85,11 +85,11 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
     }
 
     fn full_path<P: AsRef<str>>(&self, path: &P) -> String {
-        [self.key.as_str(), "$", path.as_ref()].concat()
+        [self.key.as_str(), ":", path.as_ref()].concat()
     }
 
     fn full_key<P: AsRef<str>>(&self, path: &P, key: &str) -> String {
-        [self.key.as_str(), "$", path.as_ref(), "$", key].concat()
+        [self.key.as_str(), ":", path.as_ref(), "/", key].concat()
     }
 
     fn get_raw<P: AsRef<str>>(&self, path: &P, key: &str, conn: &Connection) -> Option<T> {
@@ -141,7 +141,7 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
 
 impl<T, P> Store<P, T> for RedisStore<T>
 where
-    P: AsRef<str>,
+    P: AsRef<str> + Debug,
     T: Clone + FromRedisValue + ToRedisArgs + Debug,
 {
     type Error = BannerError;
@@ -162,14 +162,16 @@ where
     }
 
     fn get_all(&self, path: &P) -> Result<HashMap<String, T>, BannerError> {
+        let key = [path.as_ref(), ALL_CACHE].concat();
+        println!("{:?}", key);
         self.all_cache
-            .get(ALL_CACHE)
+            .get(key.as_str())
             .and_then(|map| map.ok_or(BannerError::AllCacheMissing))
             .or_else(|_| {
                 self.conn()?
                     .hgetall(self.full_path(path))
                     .map(|map: HashMap<String, T>| {
-                        let _ = self.all_cache.insert(ALL_CACHE, &map);
+                        let _ = self.all_cache.insert(key.as_str(), &map);
                         map
                     })
                     .map_err(BannerError::RedisFailure)
@@ -219,7 +221,7 @@ mod tests {
 
     use super::*;
 
-    const PATH: &'static str = "app$env";
+    const PATH: &'static str = "the-owner-uuid-value:app:env";
 
     fn f<S: Into<String>>(key: S, enabled: bool) -> Flag {
         Flag::new(key, FlagValue::Bool(true), 1, enabled)

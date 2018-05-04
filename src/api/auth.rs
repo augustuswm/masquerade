@@ -47,7 +47,7 @@ impl Middleware<State> for BasicAuth {
                 .users()
                 .get(&"users".to_string(), auth_req.key.as_str())
             {
-                if auth_req.secret == user.secret {
+                if user.verify_secret(&auth_req.secret) {
                     req.extensions().insert(user);
                     Ok(Started::Done)
                 } else {

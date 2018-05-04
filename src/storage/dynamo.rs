@@ -88,7 +88,7 @@ where
     type Error = BannerError;
 
     fn get(&self, path: &P, key: &str) -> Result<Option<T>, BannerError> {
-        let composite = [path.as_ref(), "$", key].concat();
+        let composite = [path.as_ref(), "/", key].concat();
 
         let mut key_map: HashMap<String, AttributeValue> = HashMap::new();
         let mut attr = AttributeValue::default();
@@ -126,7 +126,7 @@ where
         let mut ts: HashMap<String, T> = HashMap::new();
 
         if let Some(rs) = response {
-            let pref = [path.as_ref(), "$"].concat();
+            let pref = [path.as_ref(), "/"].concat();
 
             for mut r in rs.into_iter() {
                 match r.remove("key") {
@@ -152,7 +152,7 @@ where
     }
 
     fn delete(&self, path: &P, key: &str) -> Result<Option<T>, BannerError> {
-        let composite = [path.as_ref(), "$", key].concat();
+        let composite = [path.as_ref(), "/", key].concat();
 
         let mut key_map: HashMap<String, AttributeValue> = HashMap::new();
         let mut attr = AttributeValue::default();
@@ -178,7 +178,7 @@ where
     }
 
     fn upsert(&self, path: &P, key: &str, item: &T) -> Result<Option<T>, BannerError> {
-        let composite = [path.as_ref(), "$", key].concat();
+        let composite = [path.as_ref(), "/", key].concat();
 
         let mut key_attr = AttributeValue::default();
         key_attr.s = Some(composite);
@@ -223,7 +223,7 @@ mod tests {
 
     use super::*;
 
-    const PATH: &'static str = "app$";
+    const PATH: &'static str = "the-owner-uuid-value:app:";
 
     fn f<S: Into<String>>(key: S, enabled: bool) -> Flag {
         Flag::new(key, FlagValue::Bool(true), 1, enabled)
