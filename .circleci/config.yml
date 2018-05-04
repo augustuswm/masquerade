@@ -41,7 +41,7 @@ jobs:
       - run:
           command: |
             docker build -t masquerade .
-            docker tag masquerade:mem augustuswm/masquerade:mem
+            docker tag masquerade:latest augustuswm/masquerade:mem
             docker login -u $DOCKER_USER -p $DOCKER_PASS
             docker push augustuswm/masquerade:mem
 
@@ -93,7 +93,7 @@ jobs:
       - run:
           command: |
             docker build -t masquerade .
-            docker tag masquerade:redis augustuswm/masquerade:redis
+            docker tag masquerade:latest augustuswm/masquerade:redis
             docker login -u $DOCKER_USER -p $DOCKER_PASS
             docker push augustuswm/masquerade:redis
 
