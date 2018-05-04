@@ -28,6 +28,7 @@ jobs:
           paths:
             - ~/project/www
             - ~/project/target/release
+            - ~/project/Dockerfile
 
   mem-docker:
     docker:
@@ -79,6 +80,7 @@ jobs:
           paths:
             - ~/project/www
             - ~/project/target/release
+            - ~/project/Dockerfile
 
   redis-docker:
     docker:
