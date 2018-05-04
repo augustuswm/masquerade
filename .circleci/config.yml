@@ -42,7 +42,7 @@ jobs:
           command: |
             docker build -t masquerade .
             docker tag masquerade:latest augustuswm/masquerade:mem
-            docker login -u $DOCKER_USER -p $DOCKER_PASS
+            docker login -u $DOCKER_USER --password-stdin $DOCKER_PASS
             docker push augustuswm/masquerade:mem
 
   redis-build:
@@ -94,7 +94,7 @@ jobs:
           command: |
             docker build -t masquerade .
             docker tag masquerade:latest augustuswm/masquerade:redis
-            docker login -u $DOCKER_USER -p $DOCKER_PASS
+            docker login -u $DOCKER_USER --password-stdin $DOCKER_PASS
             docker push augustuswm/masquerade:redis
 
 workflows:
