@@ -1,6 +1,6 @@
 FROM rust
 
-COPY target/release/banner /banner
+COPY target/release/masquerade /masquerade
 COPY www /www
 
-CMD ["./banner"]
+CMD ["./masquerade"]
