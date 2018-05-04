@@ -18,6 +18,11 @@ jobs:
           command: |
             curl -sL https://deb.nodesource.com/setup_10.x | -E bash -
             apt-get install -y nodejs
+      - run:
+          name: Build Frontend
+          command: |
+            npm install
+            npm run build
       - save_cache:
           key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-mem
           paths:
@@ -64,6 +69,11 @@ jobs:
           command: |
             curl -sL https://deb.nodesource.com/setup_10.x | -E bash -
             apt-get install -y nodejs
+      - run:
+          name: Build Frontend
+          command: |
+            npm install
+            npm run build
       - save_cache:
           key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-redis
           paths:
