@@ -29,6 +29,8 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 
+use std::env;
+
 use store::Store;
 
 mod api;
@@ -57,7 +59,12 @@ fn main() {
     let apps = storage::mongo::MongoStore::open("0.0.0.0", 27017, "banner", "", "", None).unwrap();
 
     #[cfg(feature = "redis-backend")]
-    let apps = storage::redis::RedisStore::open("0.0.0.0", 6379, Some("banner"), None).unwrap();
+    let apps = storage::redis::RedisStore::open(
+        env::var("REDIS_HOST").unwrap_or("redis"),
+        6379,
+        Some("banner"),
+        None,
+    ).unwrap();
 
     #[cfg(feature = "dynamo-backend")]
     let flags = storage::dynamo::DynamoStore::new("flags").unwrap();
@@ -69,7 +76,12 @@ fn main() {
     let flags = storage::mongo::MongoStore::open("0.0.0.0", 27017, "banner", "", "", None).unwrap();
 
     #[cfg(feature = "redis-backend")]
-    let flags = storage::redis::RedisStore::open("0.0.0.0", 6379, Some("banner"), None).unwrap();
+    let flags = storage::redis::RedisStore::open(
+        env::var("REDIS_HOST").unwrap_or("redis"),
+        6379,
+        Some("banner"),
+        None,
+    ).unwrap();
 
     #[cfg(feature = "dynamo-backend")]
     let users = storage::dynamo::DynamoStore::new("users").unwrap();
@@ -81,7 +93,12 @@ fn main() {
     let users = storage::mongo::MongoStore::open("0.0.0.0", 27017, "banner", "", "", None).unwrap();
 
     #[cfg(feature = "redis-backend")]
-    let users = storage::redis::RedisStore::open("0.0.0.0", 6379, Some("banner"), None).unwrap();
+    let users = storage::redis::RedisStore::open(
+        env::var("REDIS_HOST").unwrap_or("redis"),
+        6379,
+        Some("banner"),
+        None,
+    ).unwrap();
 
     let flag = flag::Flag::new("f1", flag::FlagValue::Bool(true), 1, true);
 
