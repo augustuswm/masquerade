@@ -108,7 +108,7 @@ class App extends React.Component {
 
   prompt() {
     return <Typography className={this.props.classes.prompt} variant="display2">
-      Banner
+      Masquerade
     </Typography>;
   }
 
