@@ -60,7 +60,7 @@ fn main() {
 
     #[cfg(feature = "redis-backend")]
     let apps = storage::redis::RedisStore::open(
-        env::var("REDIS_HOST").unwrap_or("redis"),
+        env::var("REDIS_HOST").unwrap_or("redis".to_string()),
         6379,
         Some("banner"),
         None,
@@ -77,7 +77,7 @@ fn main() {
 
     #[cfg(feature = "redis-backend")]
     let flags = storage::redis::RedisStore::open(
-        env::var("REDIS_HOST").unwrap_or("redis"),
+        env::var("REDIS_HOST").unwrap_or("redis".to_string()),
         6379,
         Some("banner"),
         None,
@@ -94,7 +94,7 @@ fn main() {
 
     #[cfg(feature = "redis-backend")]
     let users = storage::redis::RedisStore::open(
-        env::var("REDIS_HOST").unwrap_or("redis"),
+        env::var("REDIS_HOST").unwrap_or("redis".to_string()),
         6379,
         Some("banner"),
         None,
