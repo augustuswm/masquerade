@@ -92,7 +92,7 @@ fn main() {
         true,
     );
 
-    let a = (u.uuid.clone() + ":tpt:prod")
+    let a = (u.uuid.clone() + ":test_app:test_env")
         .parse::<flag::FlagPath>()
         .unwrap();
     // let b = "tpt:staging".parse::<flag::FlagPath>().unwrap();
@@ -105,7 +105,11 @@ fn main() {
     // let i = "mm-api:prod".parse::<flag::FlagPath>().unwrap();
     // let j = "mm-api:staging".parse::<flag::FlagPath>().unwrap();
 
-    let _ = apps.upsert(&"paths".to_string(), &(u.uuid.clone() + ":tpt:prod"), &a);
+    let _ = apps.upsert(
+        &"paths".to_string(),
+        &(u.uuid.clone() + ":test_app:test_env"),
+        &a,
+    );
     // let _ = apps.upsert(&"paths".to_string(), "tpt:staging", &b);
     // let _ = apps.upsert(&"paths".to_string(), "nextavenue:prod", &c);
     // let _ = apps.upsert(&"paths".to_string(), "nextavenue:staging", &d);
