@@ -52,8 +52,13 @@ jobs:
     steps:
       - checkout
       - run:
-          name: install dockerize
-          command: apt-get update && apt-get install -y wget && wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+          name: Install dockerize
+          command: |
+            apt-get update
+            apt-get install -y wget
+            wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+            tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
+            rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz
           environment:
             DOCKERIZE_VERSION: v0.3.0
       - run:
@@ -64,7 +69,9 @@ jobs:
           command: cargo test --features redis-backend
       - run:
           name: Build
-          command: cargo build --release --features redis-backend
+          command: |
+            cargo build --release --features redis-backend
+            echo $CIRCLE_SHA1 > .circle-sha
       - run:
           name: Install Node
           command: |
