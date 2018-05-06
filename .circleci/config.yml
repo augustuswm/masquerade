@@ -2,7 +2,7 @@ version: 2.0
 jobs:
   mem-build:
     docker:
-      - image: rust
+      - image: clux/muslrust
     steps:
       - checkout
       - run:
@@ -47,7 +47,7 @@ jobs:
 
   redis-build:
     docker:
-      - image: rust
+      - image: clux/muslrust
       - image: redis
     steps:
       - checkout
