@@ -1,4 +1,4 @@
-FROM rust
+FROM alpine
 
 COPY target/release/masquerade /masquerade
 COPY www /www
