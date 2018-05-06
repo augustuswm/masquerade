@@ -27,7 +27,7 @@ jobs:
           key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-mem
           paths:
             - ~/project/www
-            - ~/project/target/release
+            - ~/project/target/x86_64-unknown-linux-musl/release
             - ~/project/Dockerfile
 
   mem-docker:
@@ -86,7 +86,7 @@ jobs:
           key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-redis
           paths:
             - ~/project/www
-            - ~/project/target/release
+            - ~/project/target/x86_64-unknown-linux-musl/release
             - ~/project/Dockerfile
 
   redis-docker:
