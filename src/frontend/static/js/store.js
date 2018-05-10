@@ -154,6 +154,7 @@ function reducer(state = initialState, action) {
 
 const mapStateToProps = state => {
   return {
+    baseUrl: state.baseUrl,
     app: state.app,
     env: state.env,
     apps: state.apps,
