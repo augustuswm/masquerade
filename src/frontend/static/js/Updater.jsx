@@ -6,24 +6,43 @@ class Updater extends React.Component {
   constructor(props) {
     super(props);
 
-    this.run = this.run.bind(this);
-    this.schedule = this.schedule.bind(this);
+    this.state = {
+      stream: null
+    };
+
+    this.update = this.update.bind(this);
+  }
+
+  shouldComponentUpdate(nextProps) {
+    return this.props.app !== nextProps.app || this.props.env !== nextProps.env ||
+      this.props.apiKey !== nextProps.apiKey || this.props.apiSecret !== nextProps.apiSecret;
   }
 
   componentDidMount() {
-    this.schedule();
   }
 
-  run() {
-    if (this.props.app && this.props.env) {
-      this.props.loadFlags(this.props.app, this.props.env);
+  componentDidUpdate() {
+
+    // Close any existing connections
+    if (this.state.stream && this.state.stream.close) {
+      this.state.stream.close();
     }
-    
-    this.schedule();
+
+    let { app, env, apiKey, apiSecret } = this.props;
+
+    if (app && env && apiKey && apiSecret) {
+      let auth = btoa(apiKey + ':' + apiSecret);
+      let stream = new EventSource(`http://localhost:8088/api/v1/stream/${app}/${env}/?auth=${auth}`);
+      stream.addEventListener('data', e => this.update(e.data));
+
+      this.setState({
+        stream: stream
+      });
+    }
   }
 
-  schedule() {
-    setTimeout(this.run, this.props.refresh);
+  update(data) {
+    this.props.loadFlags(JSON.parse(data))
   }
 
   render() {

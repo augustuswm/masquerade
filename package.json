@@ -1,5 +1,5 @@
 {
-  "name": "banner",
+  "name": "masquerade",
   "version": "0.1.0",
   "description": "",
   "scripts": {
@@ -9,14 +9,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/augustuswm/banner.git"
+    "url": "git+https://github.com/augustuswm/masquerade.git"
   },
   "author": "Augustus Mayo",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/augustuswm/banner/issues"
+    "url": "https://github.com/augustuswm/masquerade/issues"
   },
-  "homepage": "https://github.com/augustuswm/banner#readme",
+  "homepage": "https://github.com/augustuswm/masquerade#readme",
   "devDependencies": {
     "@material-ui/lab": "^1.0.0-alpha.0",
     "axios": "^0.17.1",
@@ -27,6 +27,7 @@
     "babel-preset-react": "^6.24.1",
     "copy-webpack-plugin": "^4.5.1",
     "history": "^4.7.2",
+    "lodash.debounce": "^4.0.8",
     "material-ui": "^1.0.0-beta.40",
     "material-ui-icons": "^1.0.0-beta.36",
     "prop-types": "^15.6.1",

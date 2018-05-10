@@ -1,4 +1,5 @@
 use actix_web::*;
+use actix_web::http::StatusCode;
 use futures::{future, Future, Stream};
 use serde_json;
 
@@ -6,37 +7,9 @@ use std::str;
 
 use api::State;
 use api::error::APIError;
+use api::flag_req::FlagReq;
 use flag::{Flag, FlagPath};
 use user::User;
-
-struct FlagReq {
-    pub path: FlagPath,
-    pub key: Option<String>,
-}
-
-impl FlagReq {
-    pub fn from_req(req: &HttpRequest<State>) -> Result<FlagReq, APIError> {
-        let params = req.match_info();
-
-        if let Some(user) = req.clone().extensions().get::<User>() {
-            if let (Some(app), Some(env)) = (params.get("app"), params.get("env")) {
-                Ok(FlagReq {
-                    path: FlagPath {
-                        owner: user.uuid.clone(),
-                        app: app.into(),
-                        env: env.into(),
-                        path: FlagPath::make_path(&user.uuid, app, env),
-                    },
-                    key: params.get("key").map(|s| s.into()),
-                })
-            } else {
-                Err(APIError::FailedToParseParams)
-            }
-        } else {
-            Err(APIError::Unauthorized)
-        }
-    }
-}
 
 pub fn read(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     Box::new(future::ok(()).and_then(move |_| {
@@ -81,7 +54,7 @@ pub fn create(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error 
                 state
                     .flags()
                     .upsert(&flag_req.path, flag.key(), &flag)
-                    .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED, Body::Empty)))
+                    .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED)))
                     .map_err(|_| APIError::FailedToWriteToStore)
             } else {
                 Err(APIError::FailedToParseBody)
@@ -113,7 +86,7 @@ pub fn update(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error 
                     state
                         .flags()
                         .upsert(&flag_req.path, key, &flag)
-                        .and_then(|_| Ok(HttpResponse::new(StatusCode::OK, Body::Empty)))
+                        .and_then(|_| Ok(HttpResponse::new(StatusCode::OK)))
                         .map_err(|_| APIError::FailedToWriteToStore)
                 } else {
                     Err(APIError::FailedToParseParams)

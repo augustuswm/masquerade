@@ -4,10 +4,14 @@ import { createStore, applyMiddleware, compose } from "redux";
 import thunk from 'redux-thunk'
 import { connect } from "react-redux";
 
+let loadedPath = window.location.pathname.split('/', 3);
+let loadedApp = loadedPath[1];
+let loadedEnv = loadedPath[2];
+
 let initialState = {
   baseUrl: "/api/v1",
-  app: "",
-  env: "",
+  app: loadedApp || "",
+  env: loadedEnv || "",
   apps: [],
   flags: [],
   refresh: 1000,
@@ -107,7 +111,7 @@ function reducer(state = initialState, action) {
       return Object.assign(
         {},
         state,
-        { app: "", env: "", apps: [], flags: [] }
+        { apps: [], flags: [] }
       );
     }
 
@@ -174,8 +178,11 @@ const mapDispatchToProps = dispatch => {
     loadApps() {
       dispatch(creators.loadApps());
     },
-    loadFlags(app, env) {
-      dispatch(creators.loadFlags(app, env));
+    loadFlags(flags) {
+      dispatch(creators.loadFlags(flags));
+    },
+    loadFlagsFor(app, env) {
+      dispatch(creators.loadFlagsFor(app, env));
     },
     selectApp(app, env) {
       dispatch(creators.selectApp(app, env));

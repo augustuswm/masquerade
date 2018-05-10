@@ -32,6 +32,7 @@ class CreateApp extends React.Component {
 
     this.setApp = this.setApp.bind(this);
     this.setEnv = this.setEnv.bind(this);
+    this.clearFields = this.clearFields.bind(this);
   }
 
   updateField(field, val) {
@@ -93,7 +94,7 @@ class CreateApp extends React.Component {
         <DialogTitle id="form-dialog-title">Add Application</DialogTitle>
         <DialogContent>
           <form
-            onSubmit={allowCreate ? () => addApp(app, env) : prevent}>
+            onSubmit={allowCreate ? () => { this.clearFields(); addApp(app, env); } : prevent}>
             <TextField
               autoFocus
               margin="dense"
@@ -117,7 +118,7 @@ class CreateApp extends React.Component {
           <Button onClick={() => { this.clearFields(); toggleAppCreate(false); }} color="primary">
             Cancel
           </Button>
-          <Button onClick={allowCreate ? () => addApp(app, env) : prevent} color="primary">
+          <Button onClick={allowCreate ? () => { this.clearFields(); addApp(app, env); } : prevent} color="primary">
             Add
           </Button>
         </DialogActions>

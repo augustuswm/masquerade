@@ -1,4 +1,5 @@
 import axios from "axios";
+import debounce from "lodash.debounce";
 
 import * as actions from "./actions";
 
@@ -23,7 +24,7 @@ function auth(getState) {
   let { apiKey, apiSecret } = getState();
 
   return {
-    Authorization: btoa(apiKey + ':' + apiSecret)
+    Authorization: 'Basic ' + btoa(apiKey + ':' + apiSecret)
   };
 }
 
@@ -66,27 +67,32 @@ function sortApps(apps) {
 }
 
 export function loadApps() {
-  return function(dispatch, getState) {
-    let { baseUrl, key, secret } = getState();
-    let url = `${baseUrl}/paths/`;
+  return debounce(
+    function(dispatch, getState) {
+      let { baseUrl, key, secret } = getState();
+      let url = `${baseUrl}/paths/`;
 
-    axios.get(url, { headers: auth(getState) }).then(function(resp) {
-        let apps = resp.data;
+      axios.get(url, { headers: auth(getState) }).then(function(resp) {
+          let apps = resp.data;
 
-        if (apps.length === 0) {
-          throw "No apps available";
-        }
+          if (apps.length === 0) {
+            throw "No apps available";
+          }
 
-        sortApps(apps);
+          sortApps(apps);
 
-        dispatch({ type: actions.LOAD_APPS, payload: apps });
-      }).catch(function(err) {
-        dispatch({ type: actions.UNLOAD_DATA, payload: undefined });
-      });
-  };
+          dispatch({ type: actions.LOAD_APPS, payload: apps });
+        }).catch(function(err) {
+          dispatch({ type: actions.UNLOAD_DATA, payload: undefined });
+        });
+    }, 250);
 }
 
-export function loadFlags(app, env) {
+export function loadFlags(flags) {
+  return { type: actions.LOAD_DATA, payload: flags };
+}
+
+export function loadFlagsFor(app, env) {
   return function(dispatch, getState) {
     if (app && env) {
       let { baseUrl } = getState();
@@ -94,7 +100,7 @@ export function loadFlags(app, env) {
 
       axios.get(url, { headers: auth(getState) })
         .then(function(resp) {
-          dispatch({ type: actions.LOAD_DATA, payload: resp.data });
+          loadFlags(resp.data);
         });
     }
   };
@@ -109,7 +115,7 @@ export function clearFlags() {
 export function selectApp(app, env) {
   return function(dispatch, getState) {
     dispatch({ type: actions.SELECT_APP, payload: { app, env } });
-    loadFlags(app, env)(dispatch, getState);
+    loadFlagsFor(app, env)(dispatch, getState);
   };
 }
 

@@ -1,5 +1,6 @@
 #[cfg(feature = "redis-backend")]
 use redis::RedisError;
+use serde_json::Error as SerdeError;
 
 use std::error::Error;
 use std::fmt;
@@ -22,6 +23,7 @@ pub enum BannerError {
     #[cfg(feature = "redis-backend")] InvalidRedisConfig,
     AllCacheMissing,
     FailedToSerializeItem,
+    UpdatedAtPoisoned
 }
 
 #[cfg(feature = "dynamo-backend")]
@@ -42,6 +44,12 @@ impl From<RedisError> for BannerError {
 impl From<MongoError> for BannerError {
     fn from(err: MongoError) -> BannerError {
         BannerError::MongoFailure(err)
+    }
+}
+
+impl From<SerdeError> for BannerError {
+    fn from(err: SerdeError) -> BannerError {
+        BannerError::FailedToSerializeItem
     }
 }
 

@@ -14,14 +14,12 @@ impl<S> Middleware<S> for Admin {
                 Ok(Started::Done)
             } else {
                 Ok(Started::Response(HttpResponse::new(
-                    StatusCode::FORBIDDEN,
-                    "".into(),
+                    StatusCode::FORBIDDEN
                 )))
             }
         } else {
             Ok(Started::Response(HttpResponse::new(
-                StatusCode::UNAUTHORIZED,
-                "".into(),
+                StatusCode::UNAUTHORIZED
             )))
         }
     }

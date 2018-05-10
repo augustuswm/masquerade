@@ -1,5 +1,8 @@
+use futures::task::Task;
+
 use std::collections::HashMap;
-use std::time::Duration;
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::time::{Duration, Instant};
 
 use error::BannerError;
 use hash_cache::HashCache;
@@ -8,12 +11,16 @@ use store::Store;
 #[derive(Debug, Clone)]
 pub struct MemStore<T> {
     data: HashCache<T>,
+    updated_at: Arc<RwLock<Instant>>,
+    subs: Arc<RwLock<HashMap<String, Vec<(String, Task)>>>>,
 }
 
 impl<T> MemStore<T> {
     pub fn new() -> MemStore<T> {
         MemStore {
             data: HashCache::new(Duration::new(0, 0)),
+            updated_at: Arc::new(RwLock::new(Instant::now())),
+            subs: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -46,13 +53,53 @@ where
     }
 
     fn delete(&self, path: &P, key: &str) -> Result<Option<T>, BannerError> {
-        self.data
-            .remove([path.as_ref(), "/", key].concat().as_str())
+        let res = self.data
+            .remove([path.as_ref(), "/", key].concat().as_str());
+        self.updated_at.write().map(|mut val| *val = Instant::now()).map_err(|_| BannerError::UpdatedAtPoisoned);
+
+        self.subs.read().map(|coll| {
+            coll.get(path.as_ref().into()).map(|subs| {
+                for &(_, ref task) in subs.iter() {
+                    task.notify()
+                }
+            })
+        });
+
+        res
     }
 
     fn upsert(&self, path: &P, key: &str, item: &T) -> Result<Option<T>, BannerError> {
-        self.data
-            .insert([path.as_ref(), "/", key].concat().as_str(), item)
+        let res = self.data
+            .insert([path.as_ref(), "/", key].concat().as_str(), item);
+        self.updated_at.write().map(|mut val| *val = Instant::now()).map_err(|_| BannerError::UpdatedAtPoisoned);
+
+        self.subs.read().map(|coll| {
+            coll.get(path.as_ref().into()).map(|subs| {
+                for &(_, ref task) in subs.iter() {
+                    task.notify()
+                }
+            })
+        });
+
+        res
+    }
+
+    fn updated_at(&self) -> Result<Instant, BannerError> {
+        self.updated_at.read().map(|val| *val).map_err(|_| BannerError::UpdatedAtPoisoned)
+    }
+
+    fn sub(&self, id: &str, path: &P, task: Task) -> bool {
+        self.subs.write().map(|mut coll| {
+            let subs = coll.entry(path.as_ref().into()).or_insert(vec![]);
+            subs.push((id.to_string(), task))
+        }).map(|_| true).unwrap_or(false)
+    }
+
+    fn unsub(&self, id: &str, path: &P) {
+        self.subs.write().map(|mut coll| {
+            let subs = coll.entry(path.as_ref().into()).or_insert(vec![]);
+            subs.iter().position(|&(ref t_id, _)| t_id == id).map(|i| subs.remove(i));
+        });
     }
 }
 

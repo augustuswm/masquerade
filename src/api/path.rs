@@ -1,4 +1,5 @@
 use actix_web::*;
+use actix_web::http::StatusCode;
 use futures::{future, Future, Stream};
 use serde_json;
 
@@ -19,7 +20,7 @@ struct FlagPathReq {
 
 pub fn create(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
-    let mut r2 = req.clone();
+    let r2 = req.clone();
 
     req.concat2()
         .from_err()
@@ -38,7 +39,7 @@ pub fn create(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error 
                     state
                         .paths()
                         .upsert(&path, f_path.as_ref(), &f_path)
-                        .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED, Body::Empty)))
+                        .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED)))
                         .map_err(|_| APIError::FailedToWriteToStore)
                 } else {
                     Err(APIError::FailedToParseBody)

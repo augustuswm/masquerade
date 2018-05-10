@@ -6,6 +6,7 @@ extern crate base64;
 #[macro_use]
 #[cfg(feature = "mongo-backend")]
 extern crate bson;
+extern crate bytes;
 extern crate env_logger;
 extern crate futures;
 extern crate http;
@@ -28,6 +29,8 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
+extern crate tokio;
+extern crate uuid;
 
 use std::env;
 

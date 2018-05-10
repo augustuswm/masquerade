@@ -56,10 +56,8 @@ impl<T: Clone> HashCache<T> {
             match entry {
                 Some(&(ref val, created)) => {
                     if self.ignore_dur() || created.elapsed() <= self.duration {
-                        println!("Hit {:?}", created);
                         Some(val.clone())
                     } else {
-                        println!("Miss");
                         None
                     }
                 }

@@ -1,15 +1,25 @@
-use actix_web::{fs, Application, Method};
+use actix_web::{fs, App, HttpRequest, Result};
+use actix_web::fs::NamedFile;
+use actix_web::http::Method;
 use actix_web::middleware::Logger;
+
+use std::path::Path;
 
 use api::auth;
 use api::flag;
 use api::path;
 use api::State;
+use api::stream;
 
-pub fn api(state: State) -> Application<State> {
-    Application::with_state(state)
+fn index(_req: HttpRequest<State>) -> Result<NamedFile> {
+    Ok(NamedFile::open(Path::new("www/index.html"))?)
+}
+
+pub fn api(state: State) -> App<State> {
+    App::with_state(state)
         .prefix("/api/v1")
         .middleware(Logger::default())
+        .middleware(auth::UrlAuth)
         .middleware(auth::BasicAuth)
         .resource("/{app}/{env}/flag/", |r| {
             r.method(Method::POST).a(flag::create)
@@ -24,13 +34,16 @@ pub fn api(state: State) -> Application<State> {
         })
         .resource("/path/", |r| r.method(Method::POST).a(path::create))
         .resource("/paths/", |r| r.method(Method::GET).a(path::all))
+        .resource("/stream/{app}/{env}/", |r| r.f(stream::flag_stream))
 }
 
-pub fn frontend(state: State) -> Application<State> {
-    Application::with_state(state)
+pub fn frontend(state: State) -> App<State> {
+    App::with_state(state)
         .middleware(Logger::default())
+        .resource("/", |r| r.h(index))
+        .resource("/{app}/{env}/", |r| r.h(index))
         .handler(
             "/",
-            fs::StaticFiles::new("www/", false).index_file("index.html"),
+            fs::StaticFiles::new("www/").index_file("index.html"),
         )
 }

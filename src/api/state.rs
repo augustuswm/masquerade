@@ -3,10 +3,14 @@ use flag::{Flag, FlagPath};
 use store::ThreadedStore;
 use user::User;
 
+pub type FlagStore = ThreadedStore<FlagPath, Flag, Error = BannerError>;
+pub type PathStore = ThreadedStore<String, FlagPath, Error = BannerError>;
+pub type UserStore = ThreadedStore<String, User, Error = BannerError>;
+
 pub struct AppState {
-    flag_store: Box<ThreadedStore<FlagPath, Flag, Error = BannerError>>,
-    path_store: Box<ThreadedStore<String, FlagPath, Error = BannerError>>,
-    user_store: Box<ThreadedStore<String, User, Error = BannerError>>,
+    flag_store: Box<FlagStore>,
+    path_store: Box<PathStore>,
+    user_store: Box<UserStore>,
 }
 
 impl AppState {

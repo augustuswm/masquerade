@@ -1,4 +1,5 @@
-use actix_web::{Body, HttpResponse, ResponseError, StatusCode};
+use actix_web::{HttpResponse, ResponseError};
+use actix_web::http::StatusCode;
 use actix_web::error::PayloadError;
 
 use std::error::Error;
@@ -51,7 +52,7 @@ impl fmt::Display for APIError {
 
 impl ResponseError for APIError {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::new(self.status(), Body::Empty)
+        HttpResponse::new(self.status())
     }
 }
 
