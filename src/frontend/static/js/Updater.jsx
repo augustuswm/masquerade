@@ -32,7 +32,7 @@ class Updater extends React.Component {
 
     if (app && env && apiKey && apiSecret) {
       let auth = btoa(apiKey + ':' + apiSecret);
-      let stream = new EventSource(`${window.location.origin}/${baseUrl}/stream/${app}/${env}/?auth=${auth}`);
+      let stream = new EventSource(`${window.location.origin}${baseUrl}/stream/${app}/${env}/?auth=${auth}`);
       stream.addEventListener('data', e => this.update(e.data));
 
       this.setState({
