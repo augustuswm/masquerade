@@ -22,15 +22,6 @@ pub struct AuthReq {
     secret: String,
 }
 
-impl AuthReq {
-    pub fn dummy() -> AuthReq {
-        AuthReq {
-            key: "dev".to_string(),
-            secret: "dev".to_string()
-        }
-    }
-}
-
 impl FromStr for AuthReq {
     type Err = APIError;
 

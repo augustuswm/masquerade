@@ -48,7 +48,7 @@ impl From<MongoError> for BannerError {
 }
 
 impl From<SerdeError> for BannerError {
-    fn from(err: SerdeError) -> BannerError {
+    fn from(_: SerdeError) -> BannerError {
         BannerError::FailedToSerializeItem
     }
 }

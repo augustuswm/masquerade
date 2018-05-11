@@ -8,8 +8,7 @@ use std::str;
 use api::State;
 use api::error::APIError;
 use api::flag_req::FlagReq;
-use flag::{Flag, FlagPath};
-use user::User;
+use flag::Flag;
 
 pub fn read(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     Box::new(future::ok(()).and_then(move |_| {

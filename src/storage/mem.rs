@@ -1,7 +1,7 @@
 use futures::task::Task;
 
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use error::BannerError;
@@ -12,7 +12,7 @@ use store::Store;
 pub struct MemStore<T> {
     data: HashCache<T>,
     updated_at: Arc<RwLock<Instant>>,
-    subs: Arc<RwLock<HashMap<String, Vec<(String, Task)>>>>,
+    subs: Arc<RwLock<HashMap<String, Vec<(String, Option<Task>)>>>>,
 }
 
 impl<T> MemStore<T> {
@@ -22,6 +22,37 @@ impl<T> MemStore<T> {
             updated_at: Arc::new(RwLock::new(Instant::now())),
             subs: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    pub fn mark_updated(&self, time: Instant) -> bool {
+        self.updated_at.write().map(|mut val| { *val = time; true }).unwrap_or(false)
+    }
+
+    pub fn notify<P>(&self, path: &P) -> usize where P: AsRef<str> {
+        if let Ok(reader) = self.subs.read() {
+            reader.get(path.as_ref().into()).map(|subs| {
+                for &(_, ref task) in subs.iter() {
+                    if let &Some(ref t) = task {
+                        t.notify();
+                    }
+                };
+
+                subs.len()
+            }).unwrap_or(0)
+        } else {
+            0
+        }
+    }
+
+    pub fn subs(&self) -> HashMap<String, usize> {
+        let map = self.subs.read().unwrap();
+        let mut ret_map = HashMap::new();
+
+        for (k, v) in map.iter() {
+            ret_map.insert(k.clone(), v.len());
+        }
+
+        ret_map
     }
 }
 
@@ -55,15 +86,8 @@ where
     fn delete(&self, path: &P, key: &str) -> Result<Option<T>, BannerError> {
         let res = self.data
             .remove([path.as_ref(), "/", key].concat().as_str());
-        self.updated_at.write().map(|mut val| *val = Instant::now()).map_err(|_| BannerError::UpdatedAtPoisoned);
-
-        self.subs.read().map(|coll| {
-            coll.get(path.as_ref().into()).map(|subs| {
-                for &(_, ref task) in subs.iter() {
-                    task.notify()
-                }
-            })
-        });
+        self.mark_updated(Instant::now());
+        self.notify(path);
 
         res
     }
@@ -71,15 +95,8 @@ where
     fn upsert(&self, path: &P, key: &str, item: &T) -> Result<Option<T>, BannerError> {
         let res = self.data
             .insert([path.as_ref(), "/", key].concat().as_str(), item);
-        self.updated_at.write().map(|mut val| *val = Instant::now()).map_err(|_| BannerError::UpdatedAtPoisoned);
-
-        self.subs.read().map(|coll| {
-            coll.get(path.as_ref().into()).map(|subs| {
-                for &(_, ref task) in subs.iter() {
-                    task.notify()
-                }
-            })
-        });
+        self.mark_updated(Instant::now());
+        self.notify(path);
 
         res
     }
@@ -88,18 +105,19 @@ where
         self.updated_at.read().map(|val| *val).map_err(|_| BannerError::UpdatedAtPoisoned)
     }
 
-    fn sub(&self, id: &str, path: &P, task: Task) -> bool {
+    fn sub(&self, id: &str, path: &P, task: Option<Task>) -> bool {
         self.subs.write().map(|mut coll| {
             let subs = coll.entry(path.as_ref().into()).or_insert(vec![]);
             subs.push((id.to_string(), task))
         }).map(|_| true).unwrap_or(false)
     }
 
-    fn unsub(&self, id: &str, path: &P) {
+    fn unsub(&self, id: &str, path: &P) -> bool {
         self.subs.write().map(|mut coll| {
             let subs = coll.entry(path.as_ref().into()).or_insert(vec![]);
             subs.iter().position(|&(ref t_id, _)| t_id == id).map(|i| subs.remove(i));
-        });
+            true
+        }).unwrap_or(false)
     }
 }
 
@@ -180,6 +198,18 @@ mod tests {
     }
 
     #[test]
+    fn test_delete_changes_timestamp() {
+        let data: Box<Store<FlagPath, Flag, Error = BannerError>> = Box::new(dataset());
+        let _ = data.upsert(&path(), "f1", &f("f1", true));
+        let t1 = data.updated_at().unwrap();
+        ::std::thread::sleep(::std::time::Duration::from_millis(50));
+        let _ = data.delete(&path(), "f1");
+        let t2 = data.updated_at().unwrap();
+
+        assert!(t2 > t1);
+    }
+
+    #[test]
     fn test_replacements_without_cache() {
         let data = dataset();
 
@@ -193,5 +223,39 @@ mod tests {
         assert_eq!(f1_2.unwrap().unwrap(), f("f1", true));
 
         assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_update_changes_timestamp() {
+        let data: Box<Store<FlagPath, Flag, Error = BannerError>> = Box::new(dataset());
+        let t1 = data.updated_at().unwrap();
+        ::std::thread::sleep(::std::time::Duration::from_millis(50));
+        let _ = data.upsert(&path(), "f1", &f("f1", true));
+        let t2 = data.updated_at().unwrap();
+
+        assert!(t2 > t1);
+    }
+
+    #[test]
+    fn test_adds_subs() {
+        let data = dataset();
+        data.sub("test-uid", &path(), None);
+
+        let mut m = HashMap::new();
+        m.insert(PATH.to_string(), 1);
+        
+        assert_eq!(data.subs(), m);
+    }
+
+    #[test]
+    fn test_removes_subs() {
+        let data = dataset();
+        data.sub("test-uid", &path(), None);
+        data.unsub("test-uid", &path());
+
+        let mut m = HashMap::new();
+        m.insert(PATH.to_string(), 0);
+        
+        assert_eq!(data.subs(), m);
     }
 }

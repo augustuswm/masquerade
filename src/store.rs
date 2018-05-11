@@ -11,8 +11,8 @@ pub trait Store<Path, Item> {
     fn delete(&self, path: &Path, key: &str) -> Result<Option<Item>, Self::Error>;
     fn upsert(&self, path: &Path, key: &str, item: &Item) -> Result<Option<Item>, Self::Error>;
     fn updated_at(&self) -> Result<Instant, Self::Error>;
-    fn sub(&self, id: &str, path: &Path, task: Task) -> bool;
-    fn unsub(&self, id: &str, path: &Path);
+    fn sub(&self, id: &str, path: &Path, task: Option<Task>) -> bool;
+    fn unsub(&self, id: &str, path: &Path) -> bool;
 }
 
 pub trait ThreadedStore<P, I>: Store<P, I> + Send + Sync {}

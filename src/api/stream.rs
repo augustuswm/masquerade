@@ -1,17 +1,14 @@
-use actix_web::{http, server, App, HttpRequest, HttpResponse, Error};
+use actix_web::{http, HttpRequest, HttpResponse, Error};
 use bytes::Bytes;
 use futures::{task, Async, Poll, Stream};
 use serde_json;
-use tokio::timer::Interval;
 use uuid::Uuid;
 
-use std::time::{Duration, Instant};
+use std::time::{Instant};
 
 use api::error::APIError;
 use api::flag_req::FlagReq;
 use api::State;
-use api::state::FlagStore;
-use flag;
 use flag::{Flag, FlagPath};
 
 
@@ -52,7 +49,7 @@ impl FlagStream {
                     Ok(Async::NotReady)
                 }
             },
-            Err(err) => {
+            Err(_) => {
                 Ok(Async::Ready(None))
             }
         }
@@ -61,7 +58,7 @@ impl FlagStream {
 
 impl Drop for FlagStream {
     fn drop(&mut self) {
-        self.state.flags().unsub(self.id.as_str(), &self.path)
+        self.state.flags().unsub(self.id.as_str(), &self.path);
     }
 }
 
@@ -71,7 +68,7 @@ impl Stream for FlagStream {
                             
     fn poll(&mut self) -> Poll<Option<Bytes>, Error> {
         if !self.subbed {
-            self.subbed = self.state.flags().sub(self.id.as_str(), &self.path, task::current());
+            self.subbed = self.state.flags().sub(self.id.as_str(), &self.path, Some(task::current()));
             self.get_store_payload()
         } else {
             self.poll_store()
