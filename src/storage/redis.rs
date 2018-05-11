@@ -1,8 +1,10 @@
+use futures::task::Task;
 use redis::{cmd, Client, Commands, Connection, FromRedisValue, RedisResult, ToRedisArgs};
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::time::Duration;
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 use error::BannerError;
 use hash_cache::HashCache;
@@ -18,6 +20,8 @@ pub struct RedisStore<T> {
     cache: HashCache<T>,
     all_cache: HashCache<HashMap<String, T>>,
     timeout: Duration,
+    updated_at: Arc<RwLock<Instant>>,
+    subs: Arc<RwLock<HashMap<String, Vec<(String, Option<Task>)>>>>,
 }
 
 pub type RedisStoreResult<T> = Result<T, BannerError>;
@@ -67,6 +71,8 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
             cache: HashCache::new(dur),
             all_cache: HashCache::new(dur),
             timeout: dur,
+            updated_at: Arc::new(RwLock::new(Instant::now())),
+            subs: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -137,6 +143,37 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
         let res: RedisResult<S> = cmd("UNWATCH").query(conn);
         res.map(|_| ()).map_err(BannerError::RedisFailure)
     }
+
+    pub fn mark_updated(&self, time: Instant) -> bool {
+        self.updated_at.write().map(|mut val| { *val = time; true }).unwrap_or(false)
+    }
+
+    pub fn notify<P>(&self, path: &P) -> usize where P: AsRef<str> {
+        if let Ok(reader) = self.subs.read() {
+            reader.get(path.as_ref().into()).map(|subs| {
+                for &(_, ref task) in subs.iter() {
+                    if let &Some(ref t) = task {
+                        t.notify();
+                    }
+                };
+
+                subs.len()
+            }).unwrap_or(0)
+        } else {
+            0
+        }
+    }
+
+    pub fn subs(&self) -> HashMap<String, usize> {
+        let map = self.subs.read().unwrap();
+        let mut ret_map = HashMap::new();
+
+        for (k, v) in map.iter() {
+            ret_map.insert(k.clone(), v.len());
+        }
+
+        ret_map
+    }
 }
 
 impl<T, P> Store<P, T> for RedisStore<T>
@@ -187,12 +224,17 @@ where
         let store_res = self.delete_raw(path, key, &conn);
         let _ = self.cleanup::<()>(&conn);
 
-        store_res.and_then(|_| {
+        let res = store_res.and_then(|_| {
             let _ = self.all_cache.clear();
             self.cache
                 .remove(self.full_key(path, key).as_str())
                 .and_then(|_| lookup)
-        })
+        });
+
+        self.mark_updated(Instant::now());
+        self.notify(path);
+
+        res
     }
 
     fn upsert(&self, path: &P, key: &str, item: &T) -> Result<Option<T>, BannerError> {
@@ -205,12 +247,36 @@ where
         let store_res = self.put_raw(path, key, item, &conn);
         let _ = self.cleanup::<()>(&conn);
 
-        store_res.and_then(|_| {
+        let res = store_res.and_then(|_| {
             let _ = self.all_cache.clear();
             self.cache
                 .insert(self.full_key(path, key), item)
                 .and_then(|_| lookup)
-        })
+        });
+
+        self.mark_updated(Instant::now());
+        self.notify(path);
+
+        res
+    }
+
+    fn updated_at(&self) -> Result<Instant, BannerError> {
+        self.updated_at.read().map(|val| *val).map_err(|_| BannerError::UpdatedAtPoisoned)
+    }
+
+    fn sub(&self, id: &str, path: &P, task: Option<Task>) -> bool {
+        self.subs.write().map(|mut coll| {
+            let subs = coll.entry(path.as_ref().into()).or_insert(vec![]);
+            subs.push((id.to_string(), task))
+        }).map(|_| true).unwrap_or(false)
+    }
+
+    fn unsub(&self, id: &str, path: &P) -> bool {
+        self.subs.write().map(|mut coll| {
+            let subs = coll.entry(path.as_ref().into()).or_insert(vec![]);
+            subs.iter().position(|&(ref t_id, _)| t_id == id).map(|i| subs.remove(i));
+            true
+        }).unwrap_or(false)
     }
 }
 
@@ -315,6 +381,18 @@ mod tests {
     }
 
     #[test]
+    fn test_delete_changes_timestamp() {
+        let data: Box<Store<FlagPath, Flag, Error = BannerError>> = Box::new(dataset("replace_no_cache", 0));
+        let _ = data.upsert(&path(), "f1", &f("f1", true));
+        let t1 = data.updated_at().unwrap();
+        ::std::thread::sleep(::std::time::Duration::from_millis(50));
+        let _ = data.delete(&path(), "f1");
+        let t2 = data.updated_at().unwrap();
+
+        assert!(t2 > t1);
+    }
+
+    #[test]
     fn test_replacements_without_cache() {
         let data = dataset("replace_no_cache", 0);
 
@@ -344,5 +422,39 @@ mod tests {
         assert_eq!(f1_2.unwrap().unwrap(), f("f1", true));
 
         assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_update_changes_timestamp() {
+        let data: Box<Store<FlagPath, Flag, Error = BannerError>> = Box::new(dataset("replace_no_cache", 0));
+        let t1 = data.updated_at().unwrap();
+        ::std::thread::sleep(::std::time::Duration::from_millis(50));
+        let _ = data.upsert(&path(), "f1", &f("f1", true));
+        let t2 = data.updated_at().unwrap();
+
+        assert!(t2 > t1);
+    }
+
+    #[test]
+    fn test_adds_subs() {
+        let data = dataset("replace_no_cache", 0);
+        data.sub("test-uid", &path(), None);
+
+        let mut m = HashMap::new();
+        m.insert(PATH.to_string(), 1);
+        
+        assert_eq!(data.subs(), m);
+    }
+
+    #[test]
+    fn test_removes_subs() {
+        let data = dataset("replace_no_cache", 0);
+        data.sub("test-uid", &path(), None);
+        data.unsub("test-uid", &path());
+
+        let mut m = HashMap::new();
+        m.insert(PATH.to_string(), 0);
+        
+        assert_eq!(data.subs(), m);
     }
 }
