@@ -26,7 +26,6 @@ jobs:
       - save_cache:
           key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-mem
           paths:
-            - ~/project/supervisord
             - ~/project/www
             - ~/project/target/x86_64-unknown-linux-musl/release
             - ~/project/Dockerfile
@@ -86,7 +85,6 @@ jobs:
       - save_cache:
           key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-redis
           paths:
-            - ~/project/supervisord
             - ~/project/www
             - ~/project/target/x86_64-unknown-linux-musl/release
             - ~/project/Dockerfile
