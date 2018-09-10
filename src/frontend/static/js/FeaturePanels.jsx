@@ -61,10 +61,6 @@ class FeaturePanels extends React.Component {
     })
   }
 
-  filter(flag) {
-    return flag.key.search(this.props.filterText) !== -1;
-  }
-
   render() {
     let { expanded } = this.state;
     let { classes, app, env, flags, filterText, updateFlag } = this.props;
@@ -72,7 +68,7 @@ class FeaturePanels extends React.Component {
     return (
       <div className={classes.root}>
         <FeatureCreator />
-        {flags.filter(this.filter).map(flag => {
+        {flags.map(flag => {
           let updated = new Date();
           updated.setTime(flag.updated * 1000);
 

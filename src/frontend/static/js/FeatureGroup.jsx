@@ -23,6 +23,8 @@ import FeatureTable from './FeatureTable.jsx';
 import Feature from './Feature.jsx';
 import { connector } from './store';
 
+const Fragment = React.Fragment;
+
 let styles = theme => ({
   addButton: {
     margin: theme.spacing.unit,
@@ -54,6 +56,11 @@ let styles = theme => ({
     marginLeft: theme.spacing.unit * 2,
     marginRight: theme.spacing.unit * 2,
     width: '100%'
+  },
+  reminder: {
+    color: theme.palette.grey['400'],
+    textAlign: 'center',
+    margin: theme.spacing.unit * 2
   }
 });
 
@@ -113,16 +120,23 @@ class FeatureGroup extends React.Component {
   }
 
   render() {
-    let { classes } = this.props;
+    let { classes, flags } = this.props;
     let exists = this.state.existingKeys.indexOf(this.state.newKey) !== -1;
     let allowCreate = this.state.newKey.length > 0 && !exists;
+    let filtered = flags.filter(flag => flag.key.search(this.props.filterText) !== -1);
+    let hidden = flags.length - filtered.length;
     
     return (
-      <Paper>
-        <FeatureCreator />
-        <Divider />
-        <FeatureTable />
-      </Paper>
+      <Fragment>
+        <Paper>
+          <FeatureCreator />
+          <Divider />
+          <FeatureTable flags={filtered} />
+        </Paper>
+        <Typography className={classes.reminder}>
+          ({hidden} flag{hidden === 1 ? " is " : "s are "}hidden)
+        </Typography>
+      </Fragment>
     );
   }
 }
