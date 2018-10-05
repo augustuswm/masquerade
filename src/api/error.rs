@@ -1,6 +1,6 @@
 use actix_web::{HttpResponse, ResponseError};
 use actix_web::http::StatusCode;
-use actix_web::error::PayloadError;
+use actix_web::error::{JsonPayloadError, PayloadError};
 
 use std::error::Error;
 use std::fmt;
@@ -58,6 +58,12 @@ impl ResponseError for APIError {
 
 impl From<PayloadError> for APIError {
     fn from(_: PayloadError) -> APIError {
+        APIError::FailedToParseBody
+    }
+}
+
+impl From<JsonPayloadError> for APIError {
+    fn from(_: JsonPayloadError) -> APIError {
         APIError::FailedToParseBody
     }
 }

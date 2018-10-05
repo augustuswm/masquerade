@@ -18,43 +18,42 @@ struct FlagPathReq {
     pub env: String,
 }
 
-pub fn create(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+pub fn create<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
-    let r2 = req.clone();
+    let ext = req.extensions();
+    let u = ext.get::<User>();
 
-    req.concat2()
-        .from_err()
-        .and_then(move |body| {
-            if let Some(user) = r2.extensions().get::<User>() {
-                if let Ok(f_path_req) =
-                    serde_json::from_str::<FlagPathReq>(str::from_utf8(&body).unwrap())
-                {
-                    let path = PATH_KEY.to_string();
-                    let f_path = FlagPath::new(user.uuid.clone(), f_path_req.app, f_path_req.env);
+    if let Some(u) = ext.get::<User>() {
+        let user = u.clone();
+        
+        req.json()
+            .from_err()
+            .and_then(move |f_path_req: FlagPathReq| {
+                let path = PATH_KEY.to_string();
+                let f_path = FlagPath::new(user.uuid.clone(), f_path_req.app, f_path_req.env);
 
-                    if let Ok(Some(_exists)) = state.paths().get(&path, f_path.as_ref()) {
-                        Err(APIError::AlreadyExists)?
-                    }
-
-                    state
-                        .paths()
-                        .upsert(&path, f_path.as_ref(), &f_path)
-                        .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED)))
-                        .map_err(|_| APIError::FailedToWriteToStore)
-                } else {
-                    Err(APIError::FailedToParseBody)
+                if let Ok(Some(_exists)) = state.paths().get(&path, f_path.as_ref()) {
+                    Err(APIError::AlreadyExists)?
                 }
-            } else {
-                Err(APIError::Unauthorized)
-            }
-        })
-        .responder()
+
+                state
+                    .paths()
+                    .upsert(&path, f_path.as_ref(), &f_path)
+                    .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED)))
+                    .map_err(|_| APIError::FailedToWriteToStore)
+            })
+            .responder()
+    } else {
+        Box::new(future::err(APIError::Unauthorized))
+    }
+
+    
 }
 
-pub fn all(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
-    Box::new(future::ok(()).and_then(move |_| {
-        let state = req.state();
+pub fn all<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+    let state = req.state().clone();
 
+    Box::new(future::ok(()).and_then(move |_| {
         state
             .paths()
             .get_all(&PATH_KEY.to_string())

@@ -10,11 +10,14 @@ use api::error::APIError;
 use api::flag_req::FlagReq;
 use flag::Flag;
 
-pub fn read(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
-    Box::new(future::ok(()).and_then(move |_| {
-        let state = req.state();
-        let flag_req = FlagReq::from_req(&req)?;
+pub fn read<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+    let state = req.state().clone();
+    let flag_req = match FlagReq::from_req(&req) {
+        Ok(res) => res,
+        Err(err) => return Box::new(future::err(err)),
+    };
 
+    Box::new(future::ok(()).and_then(move |_| {
         if let Some(ref key) = flag_req.key {
             let flag = match state.flags().get(&flag_req.path, key) {
                 Ok(Some(flag)) => Some(flag),
@@ -30,78 +33,73 @@ pub fn read(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = 
     }))
 }
 
-pub fn create(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+pub fn create<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
     let flag_req = match FlagReq::from_req(&req) {
         Ok(res) => res,
         Err(err) => return Box::new(future::err(err)),
     };
 
-    req.concat2()
+    req.json()
         .from_err()
-        .and_then(move |body| {
-            if let Ok(flag) = serde_json::from_str::<Flag>(str::from_utf8(&body).unwrap()) {
-                // Disallow empty string key
-                if flag.key().len() == 0 {
-                    Err(APIError::InvalidFlag)?
-                }
+        .and_then(move |flag: Flag| {
+            // Disallow empty string key
+            if flag.key().len() == 0 {
+                Err(APIError::InvalidFlag)?
+            }
 
-                if let Ok(Some(_exists)) = state.flags().get(&flag_req.path, flag.key()) {
-                    Err(APIError::AlreadyExists)?
-                }
+            if let Ok(Some(_exists)) = state.flags().get(&flag_req.path, flag.key()) {
+                Err(APIError::AlreadyExists)?
+            }
+
+            state
+                .flags()
+                .upsert(&flag_req.path, flag.key(), &flag)
+                .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED)))
+                .map_err(|_| APIError::FailedToWriteToStore)
+        })
+        .responder()
+}
+
+pub fn update<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+    let state = req.state().clone();
+    let flag_req = match FlagReq::from_req(&req) {
+        Ok(res) => res,
+        Err(err) => return Box::new(future::err(err)),
+    };
+
+    req.json()
+        .from_err()
+        .and_then(move |new_flag: Flag| {
+            if let Some(ref key) = flag_req.key {
+                let mut flag = match state.flags().get(&flag_req.path, key) {
+                    Ok(Some(flag)) => Some(flag),
+                    _ => None,
+                }.ok_or(APIError::FailedToFind)?;
+
+                flag.set_value(new_flag.value());
+                flag.toggle(new_flag.is_enabled());
 
                 state
                     .flags()
-                    .upsert(&flag_req.path, flag.key(), &flag)
-                    .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED)))
+                    .upsert(&flag_req.path, key, &flag)
+                    .and_then(|_| Ok(HttpResponse::new(StatusCode::OK)))
                     .map_err(|_| APIError::FailedToWriteToStore)
             } else {
-                Err(APIError::FailedToParseBody)
+                Err(APIError::FailedToParseParams)
             }
         })
         .responder()
 }
 
-pub fn update(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+pub fn delete<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
     let flag_req = match FlagReq::from_req(&req) {
         Ok(res) => res,
         Err(err) => return Box::new(future::err(err)),
     };
 
-    req.concat2()
-        .from_err()
-        .and_then(move |body| {
-            if let Ok(new_flag) = serde_json::from_str::<Flag>(str::from_utf8(&body).unwrap()) {
-                if let Some(ref key) = flag_req.key {
-                    let mut flag = match state.flags().get(&flag_req.path, key) {
-                        Ok(Some(flag)) => Some(flag),
-                        _ => None,
-                    }.ok_or(APIError::FailedToFind)?;
-
-                    flag.set_value(new_flag.value());
-                    flag.toggle(new_flag.is_enabled());
-
-                    state
-                        .flags()
-                        .upsert(&flag_req.path, key, &flag)
-                        .and_then(|_| Ok(HttpResponse::new(StatusCode::OK)))
-                        .map_err(|_| APIError::FailedToWriteToStore)
-                } else {
-                    Err(APIError::FailedToParseParams)
-                }
-            } else {
-                Err(APIError::FailedToParseBody)
-            }
-        })
-        .responder()
-}
-
-pub fn delete(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     Box::new(future::ok(()).and_then(move |_| {
-        let state = req.state();
-        let flag_req = FlagReq::from_req(&req)?;
-
         if let Some(ref key) = flag_req.key {
             let flag = state
                 .flags()
@@ -121,10 +119,14 @@ pub fn delete(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error 
     }))
 }
 
-pub fn all(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+pub fn all<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+    let state = req.state().clone();
+    let flag_req = match FlagReq::from_req(&req) {
+        Ok(res) => res,
+        Err(err) => return Box::new(future::err(err)),
+    };
+
     Box::new(future::ok(()).and_then(move |_| {
-        let state = req.state();
-        let flag_req = FlagReq::from_req(&req)?;
 
         state
             .flags()

@@ -11,7 +11,7 @@ use api::path;
 use api::State;
 use api::stream;
 
-fn index(_req: HttpRequest<State>) -> Result<NamedFile> {
+fn index<'r>(_req: &'r HttpRequest<State>) -> Result<NamedFile> {
     Ok(NamedFile::open(Path::new("www/index.html"))?)
 }
 
@@ -44,6 +44,6 @@ pub fn frontend(state: State) -> App<State> {
         .resource("/{app}/{env}/", |r| r.h(index))
         .handler(
             "/",
-            fs::StaticFiles::new("www/").index_file("index.html"),
+            fs::StaticFiles::new("www/").expect("Failed to locate www directory").index_file("index.html"),
         )
 }

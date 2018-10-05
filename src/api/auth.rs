@@ -53,7 +53,7 @@ fn verifiy_auth(auth: &AuthReq, store: &Box<UserStore>) -> Option<User> {
     })
 }
 
-fn handle_auth(auth: &AuthReq, req: &mut HttpRequest<State>) -> Started {
+fn handle_auth(auth: &AuthReq, req: &HttpRequest<State>) -> Started {
     if let Some(user) = verifiy_auth(auth, req.state().users()) {
         req.extensions_mut().insert(user);
         Started::Done
@@ -65,15 +65,15 @@ fn handle_auth(auth: &AuthReq, req: &mut HttpRequest<State>) -> Started {
 }
 
 impl Middleware<State> for BasicAuth {
-    fn start(&self, req: &mut HttpRequest<State>) -> Result<Started> {
+    fn start(&self, req: &HttpRequest<State>) -> Result<Started> {
 
         // If the user was already authenticated by some other means,
         // use the already set user
-        if req.clone().extensions().get::<User>().is_some() {
+        if req.extensions().get::<User>().is_some() {
             Ok(Started::Done)
         } else {
             let auth_test = req
-                .headers_mut()
+                .headers()
                 .get(header::AUTHORIZATION)
                 .and_then(|auth| auth.to_str().ok())
                 .and_then(|auth| auth[6..].parse::<AuthReq>().ok());
@@ -90,17 +90,17 @@ impl Middleware<State> for BasicAuth {
         }
     }
 
-    fn response(&self, _: &mut HttpRequest<State>, resp: HttpResponse) -> Result<Response> {
+    fn response(&self, _: &HttpRequest<State>, resp: HttpResponse) -> Result<Response> {
         Ok(Response::Done(resp))
     }
 }
 
 impl Middleware<State> for UrlAuth {
-    fn start(&self, req: &mut HttpRequest<State>) -> Result<Started> {
+    fn start(&self, req: &HttpRequest<State>) -> Result<Started> {
         
         // If the user was already authenticated by some other means,
         // use the already set user
-        if req.clone().extensions().get::<User>().is_some() {
+        if req.extensions().get::<User>().is_some() {
             Ok(Started::Done)
         } else {
             let auth_test = req.query().get("auth").and_then(|auth| auth.parse::<AuthReq>().ok());
@@ -113,7 +113,7 @@ impl Middleware<State> for UrlAuth {
         }
     }
 
-    fn response(&self, _: &mut HttpRequest<State>, resp: HttpResponse) -> Result<Response> {
+    fn response(&self, _: &HttpRequest<State>, resp: HttpResponse) -> Result<Response> {
         Ok(Response::Done(resp))
     }
 }

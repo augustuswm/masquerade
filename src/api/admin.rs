@@ -8,7 +8,7 @@ use user::User;
 pub struct Admin;
 
 impl<S> Middleware<S> for Admin {
-    fn start(&self, req: &mut HttpRequest<S>) -> Result<Started> {
+    fn start(&self, req: &HttpRequest<S>) -> Result<Started> {
         if let Some(user) = req.extensions().get::<User>() {
             if user.is_admin() {
                 Ok(Started::Done)
@@ -24,7 +24,7 @@ impl<S> Middleware<S> for Admin {
         }
     }
 
-    fn response(&self, _: &mut HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
+    fn response(&self, _: &HttpRequest<S>, resp: HttpResponse) -> Result<Response> {
         Ok(Response::Done(resp))
     }
 }

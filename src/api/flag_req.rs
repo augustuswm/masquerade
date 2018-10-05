@@ -14,7 +14,7 @@ impl FlagReq {
     pub fn from_req(req: &HttpRequest<State>) -> Result<FlagReq, APIError> {
         let params = req.match_info();
 
-        if let Some(user) = req.clone().extensions().get::<User>() {
+        if let Some(user) = req.extensions().get::<User>() {
             if let (Some(app), Some(env)) = (params.get("app"), params.get("env")) {
                 Ok(FlagReq {
                     path: FlagPath {

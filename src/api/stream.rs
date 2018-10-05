@@ -79,7 +79,7 @@ impl Stream for FlagStream {
     }
 }
 
-pub fn flag_stream(req: HttpRequest<State>) -> Result<HttpResponse, APIError> {
+pub fn flag_stream<'r>(req: &'r HttpRequest<State>) -> Result<HttpResponse, APIError> {
     let flag_req = FlagReq::from_req(&req)?;
 
     let stream = FlagStream {
