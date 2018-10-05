@@ -198,10 +198,10 @@ impl FromRedisValue for Flag {
 
 #[cfg(feature = "redis-backend")]
 impl<'a> ToRedisArgs for Flag {
-    fn to_redis_args(&self) -> Vec<Vec<u8>> {
+    fn write_redis_args(&self, out: &mut Vec<Vec<u8>>) {
         let ser = serde_json::to_string(&self);
 
-        vec![
+        out.push(
             match ser {
                 Ok(json) => json.as_bytes().into(),
 
@@ -210,7 +210,7 @@ impl<'a> ToRedisArgs for Flag {
                 // is checked by the store
                 Err(_) => "fail".to_string().as_bytes().into(),
             },
-        ]
+        )
     }
 }
 
@@ -242,10 +242,10 @@ impl FromRedisValue for FlagPath {
 
 #[cfg(feature = "redis-backend")]
 impl<'a> ToRedisArgs for FlagPath {
-    fn to_redis_args(&self) -> Vec<Vec<u8>> {
+    fn write_redis_args(&self, out: &mut Vec<Vec<u8>>) {
         let ser = serde_json::to_string(&self);
 
-        vec![
+        out.push(
             match ser {
                 Ok(json) => json.as_bytes().into(),
 
@@ -254,7 +254,7 @@ impl<'a> ToRedisArgs for FlagPath {
                 // is checked by the store
                 Err(_) => "fail".to_string().as_bytes().into(),
             },
-        ]
+        )
     }
 }
 

@@ -111,10 +111,10 @@ impl FromRedisValue for User {
 
 #[cfg(feature = "redis-backend")]
 impl<'a> ToRedisArgs for User {
-    fn to_redis_args(&self) -> Vec<Vec<u8>> {
+    fn write_redis_args(&self, out: &mut Vec<Vec<u8>>) {
         let ser = serde_json::to_string(&self);
 
-        vec![
+        out.push(
             match ser {
                 Ok(json) => json.as_bytes().into(),
 
@@ -123,7 +123,7 @@ impl<'a> ToRedisArgs for User {
                 // is checked by the store
                 Err(_) => "fail".to_string().as_bytes().into(),
             },
-        ]
+        )
     }
 }
 

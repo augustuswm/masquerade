@@ -30,7 +30,7 @@ version = "0.12.0"
 
 [dependencies.redis]
 optional = true
-version = "0.8.0"
+version = "0.9.1"
 
 [dependencies.rusoto_core]
 optional = true
