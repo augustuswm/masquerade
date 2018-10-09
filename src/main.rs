@@ -18,6 +18,8 @@ extern crate log;
 extern crate mongo_driver;
 #[cfg(feature = "redis-backend")]
 extern crate redis;
+#[cfg(feature = "redis-backend")]
+extern crate redis_async;
 extern crate ring;
 #[cfg(feature = "dynamo-backend")]
 extern crate rusoto_core;

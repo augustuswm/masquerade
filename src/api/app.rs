@@ -34,7 +34,7 @@ pub fn api(state: State) -> App<State> {
         })
         .resource("/path/", |r| r.method(Method::POST).a(path::create))
         .resource("/paths/", |r| r.method(Method::GET).a(path::all))
-        .resource("/stream/{app}/{env}/", |r| r.f(stream::flag_stream))
+        .resource("/stream/{app}/{env}/", |r| r.method(Method::GET).a(stream::flag_stream))
 }
 
 pub fn frontend(state: State) -> App<State> {

@@ -1,7 +1,10 @@
 use actix_web::http::ConnectionType;
 use actix_web::{http, Error, HttpRequest, HttpResponse};
 use bytes::Bytes;
-use futures::{task, Async, Poll, Stream};
+use futures::{future, task, Async, Future, Poll, Stream};
+
+use redis_async::client;
+use redis_async::resp::{FromResp, RespValue};
 use serde_json;
 use uuid::Uuid;
 
@@ -79,18 +82,72 @@ impl Stream for FlagStream {
     }
 }
 
-pub fn flag_stream<'r>(req: &'r HttpRequest<State>) -> Result<HttpResponse, APIError> {
-    let flag_req = FlagReq::from_req(&req)?;
+fn redis_stream() -> impl Future<Item = impl Stream<Item = RespValue, Error = APIError>, Error = APIError> {
+    let topic = "masquerade".to_string();
+    let addr = "127.0.0.1:6379".to_string().parse().unwrap();
 
-    let stream = FlagStream {
-        id: Uuid::new_v4().to_string(),
-        path: flag_req.path,
-        state: req.state().clone(),
-        last_seen: Instant::now(),
-        subbed: false,
+    client::pubsub_connect(&addr)
+        .and_then(move |connection| connection.subscribe(&topic))
+        .map(|stream| {
+            println!("Connected to topic");
+            stream.map(|msg| {
+                println!("Stream message");
+                msg
+            }).map_err(|_| APIError::Unauthorized)
+        })
+        .map_err(|_| APIError::Unauthorized)
+    // msgs.map_err(|_| ()).and_then(|msgs| {
+    //     msgs.for_each(|message| {
+    //         println!("{}", String::from_resp(message).unwrap());
+    //         future::ok(())
+    //     })
+    // })
+}
+
+// pub fn flag_stream<'r>(req: &'r HttpRequest<State>) -> Result<HttpResponse, APIError> {
+//     let flag_req = FlagReq::from_req(&req)?;
+
+//     let stream = FlagStream {
+//         id: Uuid::new_v4().to_string(),
+//         path: flag_req.path,
+//         state: req.state().clone(),
+//         last_seen: Instant::now(),
+//         subbed: false,
+//     };
+
+//     Ok(HttpResponse::Ok()
+//         .header(http::header::CACHE_CONTROL, "no-cache")
+//         .header(http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+//         .header(http::header::CONNECTION, "keep-alive")
+//         .content_type("text/event-stream")
+//         .content_encoding(http::ContentEncoding::Identity)
+//         .no_chunking()
+//         .connection_type(ConnectionType::KeepAlive)
+//         // .force_close()
+//         .streaming(stream))
+// }
+
+pub fn flag_stream<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+    let flag_req = match FlagReq::from_req(&req) {
+        Ok(res) => res,
+        Err(err) => return Box::new(future::err(err)),
     };
 
-    Ok(HttpResponse::Ok()
+    let state = req.state().clone();
+    let path = flag_req.path;
+
+    // let stream = FlagStream {
+    //     id: Uuid::new_v4().to_string(),
+    //     path: flag_req.path,
+    //     state: req.state().clone(),
+    //     last_seen: Instant::now(),
+    //     subbed: false,
+    // };
+
+    
+
+    Box::new(redis_stream().map(|stream| {
+        HttpResponse::Ok()
         .header(http::header::CACHE_CONTROL, "no-cache")
         .header(http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
         .header(http::header::CONNECTION, "keep-alive")
@@ -99,5 +156,19 @@ pub fn flag_stream<'r>(req: &'r HttpRequest<State>) -> Result<HttpResponse, APIE
         .no_chunking()
         .connection_type(ConnectionType::KeepAlive)
         // .force_close()
-        .streaming(stream))
+        .streaming(stream.map(move |_| {
+            state
+                .flags()
+                .get_all(&path)
+                .and_then(|flags| {
+                    let mut flag_list = flags.values().collect::<Vec<&Flag>>();
+                    flag_list
+                        .as_mut_slice()
+                        .sort_by(|&a, &b| a.key().cmp(b.key()));
+                    serde_json::to_string(&flag_list).map_err(|err| err.into())
+                })
+                .map(|json| HEADER.to_string() + "data:" + &json + "\n\n")
+                .map(|event| Bytes::from(event)).unwrap()
+        }))
+    }))
 }

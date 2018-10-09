@@ -6,6 +6,7 @@ use std::fmt::Debug;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
+use flag::Flag;
 use error::BannerError;
 use hash_cache::HashCache;
 use store::Store;
@@ -149,19 +150,26 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
     }
 
     pub fn notify<P>(&self, path: &P) -> usize where P: AsRef<str> {
-        if let Ok(reader) = self.subs.read() {
-            reader.get(path.as_ref().into()).map(|subs| {
-                for &(_, ref task) in subs.iter() {
-                    if let &Some(ref t) = task {
-                        t.notify();
-                    }
-                };
+        self.conn().and_then(|conn| {
+            conn.publish("masquerade", 1).map_err(|err| BannerError::RedisFailure(err))
+        }).unwrap_or(0)
 
-                subs.len()
-            }).unwrap_or(0)
-        } else {
-            0
-        }
+        // let conn = self.conn().unwrap();
+        // conn.publish("masquerade", 1).unwrap()
+
+        // if let Ok(reader) = self.subs.read() {
+        //     reader.get(path.as_ref().into()).map(|subs| {
+        //         for &(_, ref task) in subs.iter() {
+        //             if let &Some(ref t) = task {
+        //                 t.notify();
+        //             }
+        //         };
+
+        //         subs.len()
+        //     }).unwrap_or(0)
+        // } else {
+        //     0
+        // }
     }
 
     pub fn subs(&self) -> HashMap<String, usize> {
