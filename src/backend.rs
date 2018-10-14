@@ -1,39 +1,38 @@
+use futures::{Future, Stream};
 use futures::task::Task;
 use redis::{cmd, Client, Commands, Connection, FromRedisValue, RedisResult, ToRedisArgs};
+use redis_async::client;
 
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-use flag::Flag;
 use error::BannerError;
 use hash_cache::HashCache;
-use store::Store;
 
 const FAIL: &'static [u8; 4] = &[102, 97, 105, 108];
 const ALL_CACHE: &'static str = ":all_flags$";
 
 #[derive(Debug)]
-pub struct RedisStore<T> {
+pub struct RedisStore<P, T> {
     key: String,
     client: Client,
     cache: HashCache<T>,
     all_cache: HashCache<HashMap<String, T>>,
     timeout: Duration,
     updated_at: Arc<RwLock<Instant>>,
-    subs: Arc<RwLock<HashMap<String, Vec<(String, Option<Task>)>>>>,
+    _key: ::std::marker::PhantomData<P>,
 }
 
 pub type RedisStoreResult<T> = Result<T, BannerError>;
 
-impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
+impl<P, T> RedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRedisValue + ToRedisArgs {
     pub fn open<S, U>(
         host: S,
         port: u32,
         prefix: Option<U>,
         timeout: Option<Duration>,
-    ) -> RedisStoreResult<RedisStore<T>>
+    ) -> RedisStoreResult<RedisStore<P, T>>
     where
         S: Into<String>,
         U: Into<String>,
@@ -45,7 +44,7 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
         url: S,
         prefix: Option<U>,
         timeout: Option<Duration>,
-    ) -> RedisStoreResult<RedisStore<T>>
+    ) -> RedisStoreResult<RedisStore<P, T>>
     where
         S: Into<String>,
         U: Into<String>,
@@ -60,20 +59,20 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
         client: Client,
         prefix: Option<S>,
         timeout: Option<Duration>,
-    ) -> RedisStore<T>
+    ) -> RedisStore<P, T>
     where
         S: Into<String>,
     {
         let dur = timeout.unwrap_or(Duration::new(0, 0));
 
         RedisStore {
-            key: RedisStore::<T>::features_key(prefix),
+            key: RedisStore::<P, T>::features_key(prefix),
             client: client,
             cache: HashCache::new(dur),
             all_cache: HashCache::new(dur),
             timeout: dur,
             updated_at: Arc::new(RwLock::new(Instant::now())),
-            subs: Arc::new(RwLock::new(HashMap::new())),
+            _key: ::std::marker::PhantomData
         }
     }
 
@@ -91,19 +90,19 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
             .map_err(BannerError::RedisFailure)
     }
 
-    fn full_path<P: AsRef<str>>(&self, path: &P) -> String {
+    fn full_path(&self, path: &P) -> String {
         [self.key.as_str(), ":", path.as_ref()].concat()
     }
 
-    fn full_key<P: AsRef<str>>(&self, path: &P, key: &str) -> String {
+    fn full_key(&self, path: &P, key: &str) -> String {
         [self.key.as_str(), ":", path.as_ref(), "/", key].concat()
     }
 
-    fn get_raw<P: AsRef<str>>(&self, path: &P, key: &str, conn: &Connection) -> Option<T> {
+    fn get_raw(&self, path: &P, key: &str, conn: &Connection) -> Option<T> {
         conn.hget(self.full_path(path), key.to_string()).ok()
     }
 
-    fn put_raw<P: AsRef<str>>(
+    fn put_raw(
         &self,
         path: &P,
         key: &str,
@@ -121,7 +120,7 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
         }
     }
 
-    fn delete_raw<P: AsRef<str>>(
+    fn delete_raw(
         &self,
         path: &P,
         key: &str,
@@ -131,7 +130,7 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
         res.map(|_| ()).map_err(BannerError::RedisFailure)
     }
 
-    fn start<S: FromRedisValue, P: AsRef<str>>(
+    fn start<S: FromRedisValue>(
         &self,
         path: &P,
         conn: &Connection,
@@ -149,7 +148,7 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
         self.updated_at.write().map(|mut val| { *val = time; true }).unwrap_or(false)
     }
 
-    pub fn notify<P>(&self, path: &P) -> usize where P: AsRef<str> {
+    pub fn notify(&self, _path: &P) -> usize {
         self.conn().and_then(|conn| {
             conn.publish("masquerade", 1).map_err(|err| BannerError::RedisFailure(err))
         }).unwrap_or(0)
@@ -172,26 +171,7 @@ impl<T: Clone + FromRedisValue + ToRedisArgs> RedisStore<T> {
         // }
     }
 
-    pub fn subs(&self) -> HashMap<String, usize> {
-        let map = self.subs.read().unwrap();
-        let mut ret_map = HashMap::new();
-
-        for (k, v) in map.iter() {
-            ret_map.insert(k.clone(), v.len());
-        }
-
-        ret_map
-    }
-}
-
-impl<T, P> Store<P, T> for RedisStore<T>
-where
-    P: AsRef<str> + Debug,
-    T: Clone + FromRedisValue + ToRedisArgs + Debug,
-{
-    type Error = BannerError;
-
-    fn get(&self, path: &P, key: &str) -> Result<Option<T>, BannerError> {
+    pub fn get(&self, path: &P, key: &str) -> RedisStoreResult<Option<T>> {
         match self.cache.get(self.full_key(path, key).as_str()) {
             Ok(Some(item)) => Ok(Some(item)),
             _ => self.conn().map(|conn| {
@@ -206,9 +186,8 @@ where
         }
     }
 
-    fn get_all(&self, path: &P) -> Result<HashMap<String, T>, BannerError> {
+    pub fn get_all(&self, path: &P) -> RedisStoreResult<HashMap<String, T>> {
         let key = [path.as_ref(), ALL_CACHE].concat();
-        println!("{:?}", key);
         self.all_cache
             .get(key.as_str())
             .and_then(|map| map.ok_or(BannerError::AllCacheMissing))
@@ -223,10 +202,10 @@ where
             })
     }
 
-    fn delete(&self, path: &P, key: &str) -> Result<Option<T>, BannerError> {
+    pub fn delete(&self, path: &P, key: &str) -> RedisStoreResult<Option<T>> {
         // Ignores cache lookup
         let conn = self.conn()?;
-        let _: () = self.start::<(), P>(path, &conn)?;
+        let _: () = self.start::<()>(path, &conn)?;
 
         let lookup = self.get(path, key);
         let store_res = self.delete_raw(path, key, &conn);
@@ -245,10 +224,10 @@ where
         res
     }
 
-    fn upsert(&self, path: &P, key: &str, item: &T) -> Result<Option<T>, BannerError> {
+    pub fn upsert(&self, path: &P, key: &str, item: &T) -> RedisStoreResult<Option<T>> {
         // Ignores cache lookup
         let conn = self.conn()?;
-        let _: () = self.start::<(), P>(path, &conn)?;
+        let _: () = self.start::<()>(path, &conn)?;
 
         let lookup = self.get(path, key);
 
@@ -268,30 +247,35 @@ where
         res
     }
 
-    fn updated_at(&self) -> Result<Instant, BannerError> {
+    pub fn updated_at(&self) -> RedisStoreResult<Instant> {
         self.updated_at.read().map(|val| *val).map_err(|_| BannerError::UpdatedAtPoisoned)
     }
 
-    fn sub(&self, id: &str, path: &P, task: Option<Task>) -> bool {
-        self.subs.write().map(|mut coll| {
-            let subs = coll.entry(path.as_ref().into()).or_insert(vec![]);
-            subs.push((id.to_string(), task))
-        }).map(|_| true).unwrap_or(false)
-    }
+    pub fn update_sub(&self) -> impl Future<Item = impl Stream<Item = (), Error = BannerError>, Error = BannerError> {
+        let topic = "masquerade".to_string();
+        let addr = "127.0.0.1:6379".to_string().parse().unwrap();
 
-    fn unsub(&self, id: &str, path: &P) -> bool {
-        self.subs.write().map(|mut coll| {
-            let subs = coll.entry(path.as_ref().into()).or_insert(vec![]);
-            subs.iter().position(|&(ref t_id, _)| t_id == id).map(|i| subs.remove(i));
-            true
-        }).unwrap_or(false)
+        client::pubsub_connect(&addr)
+            .and_then(move |connection| connection.subscribe(&topic))
+            .map(move |stream| {
+                info!("Connected to topic");
+                stream.map(move |_| {
+                    ()
+                }).map_err(|err| {
+                    error!("Stream message error {:?}", err);
+                    BannerError::RedisAsyncSubMessageFailure
+                })
+            })
+            .map_err(|err| {
+                error!("Topic connection error {:?}", err);
+                BannerError::RedisAsyncSubConnectionFailure(err)
+            })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use flag::*;
-    use store::*;
 
     use super::*;
 
@@ -305,7 +289,7 @@ mod tests {
         PATH.parse::<FlagPath>().unwrap()
     }
 
-    fn dataset(p: &str, dur: u64) -> RedisStore<Flag> {
+    fn dataset(p: &str, dur: u64) -> RedisStore<FlagPath, Flag> {
         let store =
             RedisStore::open("0.0.0.0", 6379, Some(p), Some(Duration::new(dur, 0))).unwrap();
         let flags = vec![f("f1", false), f("f2", true)];
@@ -390,7 +374,7 @@ mod tests {
 
     #[test]
     fn test_delete_changes_timestamp() {
-        let data: Box<Store<FlagPath, Flag, Error = BannerError>> = Box::new(dataset("replace_no_cache", 0));
+        let data = dataset("replace_no_cache", 0);
         let _ = data.upsert(&path(), "f1", &f("f1", true));
         let t1 = data.updated_at().unwrap();
         ::std::thread::sleep(::std::time::Duration::from_millis(50));
@@ -434,7 +418,7 @@ mod tests {
 
     #[test]
     fn test_update_changes_timestamp() {
-        let data: Box<Store<FlagPath, Flag, Error = BannerError>> = Box::new(dataset("replace_no_cache", 0));
+        let data = dataset("replace_no_cache", 0);
         let t1 = data.updated_at().unwrap();
         ::std::thread::sleep(::std::time::Duration::from_millis(50));
         let _ = data.upsert(&path(), "f1", &f("f1", true));
@@ -443,26 +427,7 @@ mod tests {
         assert!(t2 > t1);
     }
 
-    #[test]
-    fn test_adds_subs() {
-        let data = dataset("replace_no_cache", 0);
-        data.sub("test-uid", &path(), None);
+    // TODO: Add subscription test
 
-        let mut m = HashMap::new();
-        m.insert(PATH.to_string(), 1);
-        
-        assert_eq!(data.subs(), m);
-    }
-
-    #[test]
-    fn test_removes_subs() {
-        let data = dataset("replace_no_cache", 0);
-        data.sub("test-uid", &path(), None);
-        data.unsub("test-uid", &path());
-
-        let mut m = HashMap::new();
-        m.insert(PATH.to_string(), 0);
-        
-        assert_eq!(data.subs(), m);
-    }
+    // TODO: Add notify test
 }

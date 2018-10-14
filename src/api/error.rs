@@ -1,6 +1,7 @@
 use actix_web::{HttpResponse, ResponseError};
 use actix_web::http::StatusCode;
 use actix_web::error::{JsonPayloadError, PayloadError};
+use serde_json::Error as SerdeError;
 
 use std::error::Error;
 use std::fmt;
@@ -8,7 +9,6 @@ use std::fmt;
 #[derive(Debug, PartialEq)]
 pub enum APIError {
     AlreadyExists,
-    FailedToAccessParams,
     FailedToAccessStore,
     FailedToFind,
     FailedToParseAuth,
@@ -24,7 +24,6 @@ impl APIError {
     pub fn status(&self) -> StatusCode {
         match self {
             &APIError::AlreadyExists => StatusCode::CONFLICT,
-            &APIError::FailedToAccessParams => StatusCode::BAD_REQUEST,
             &APIError::FailedToAccessStore => StatusCode::INTERNAL_SERVER_ERROR,
             &APIError::FailedToFind => StatusCode::NOT_FOUND,
             &APIError::FailedToParseAuth => StatusCode::BAD_REQUEST,
@@ -53,6 +52,12 @@ impl fmt::Display for APIError {
 impl ResponseError for APIError {
     fn error_response(&self) -> HttpResponse {
         HttpResponse::new(self.status())
+    }
+}
+
+impl From<SerdeError> for APIError {
+    fn from(_: SerdeError) -> APIError {
+        APIError::FailedToSerialize
     }
 }
 

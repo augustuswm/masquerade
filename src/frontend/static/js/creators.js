@@ -82,6 +82,7 @@ export function loadApps() {
           sortApps(apps);
 
           dispatch({ type: actions.LOAD_APPS, payload: apps });
+          selectApp(apps[0].app, apps[0].env)(dispatch, getState);
         }).catch(function(err) {
           dispatch({ type: actions.UNLOAD_DATA, payload: undefined });
         });
@@ -100,7 +101,7 @@ export function loadFlagsFor(app, env) {
 
       axios.get(url, { headers: auth(getState) })
         .then(function(resp) {
-          loadFlags(resp.data);
+          dispatch(loadFlags(resp.data));
         });
     }
   };

@@ -39,11 +39,11 @@ impl FromStr for AuthReq {
     }
 }
 
-fn find_user(auth: &AuthReq, store: &Box<UserStore>) -> Option<User> {
+fn find_user(auth: &AuthReq, store: &UserStore) -> Option<User> {
     store.get(&"users".to_string(), auth.key.as_str()).unwrap_or(None)
 }
 
-fn verifiy_auth(auth: &AuthReq, store: &Box<UserStore>) -> Option<User> {
+fn verifiy_auth(auth: &AuthReq, store: &UserStore) -> Option<User> {
     find_user(auth, store).and_then(|user| {
         if user.verify_secret(&auth.secret) {
             Some(user)

@@ -1,20 +1,13 @@
-#[cfg(feature = "mongo-backend")]
-use bson;
-#[cfg(feature = "redis-backend")]
+use redis_async;
+use redis_async::error::Error as RedisAsyncError;
+use redis_async::resp::{FromResp, RespValue};
 use redis::{ErrorKind, FromRedisValue, RedisResult, ToRedisArgs, Value as RedisValue};
-#[cfg(feature = "dynamo-backend")]
-use rusoto_dynamodb::AttributeValue;
-#[cfg(feature = "redis-backend")]
 use serde_json;
 
-#[cfg(feature = "dynamo-backend")]
-use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use error::BannerError;
-#[cfg(feature = "dynamo-backend")]
-use storage::dynamo::{DynamoError, FromAttrMap};
 
 const PATH_SEP: &'static str = ":";
 
@@ -169,8 +162,6 @@ pub enum FlagValue {
 }
 
 // Backend Impls
-
-#[cfg(feature = "redis-backend")]
 impl FromRedisValue for Flag {
     fn from_redis_value(v: &RedisValue) -> RedisResult<Flag> {
         match *v {
@@ -196,7 +187,6 @@ impl FromRedisValue for Flag {
     }
 }
 
-#[cfg(feature = "redis-backend")]
 impl<'a> ToRedisArgs for Flag {
     fn write_redis_args(&self, out: &mut Vec<Vec<u8>>) {
         let ser = serde_json::to_string(&self);
@@ -214,7 +204,33 @@ impl<'a> ToRedisArgs for Flag {
     }
 }
 
-#[cfg(feature = "redis-backend")]
+impl FromResp for Flag {
+    fn from_resp_int(resp: RespValue) -> Result<Flag, RedisAsyncError> {
+        match resp {
+            RespValue::BulkString(ref bytes) => {
+                serde_json::from_str(&String::from_utf8_lossy(bytes)).or_else(|_| {
+                    // let err = (ErrorKind::TypeError, "Unable to deserialize json to Flag");
+                    Err(redis_async::error::resp("Cannot convert into a Flag", redis_async::resp::RespValue::BulkString(bytes.to_owned())))
+                })
+            },
+            RespValue::SimpleString(ref string) => {
+                serde_json::from_str(string.as_str()).or_else(|_| {
+                    // let err = (ErrorKind::TypeError, "Unable to deserialize json to Flag");
+                    Err(redis_async::error::resp("Cannot convert into a Flag", resp.to_owned()))
+                })
+            },
+            _ => Err(redis_async::error::resp("Cannot convert into a Flag", resp)),
+        }
+    }
+}
+
+impl Into<RespValue> for Flag {
+    fn into(self: Self) -> RespValue {
+        let ser = serde_json::to_string(&self);
+        RespValue::BulkString(ser.unwrap().as_bytes().to_vec())
+    }
+}
+
 impl FromRedisValue for FlagPath {
     fn from_redis_value(v: &RedisValue) -> RedisResult<FlagPath> {
         match *v {
@@ -240,7 +256,6 @@ impl FromRedisValue for FlagPath {
     }
 }
 
-#[cfg(feature = "redis-backend")]
 impl<'a> ToRedisArgs for FlagPath {
     fn write_redis_args(&self, out: &mut Vec<Vec<u8>>) {
         let ser = serde_json::to_string(&self);
@@ -255,134 +270,6 @@ impl<'a> ToRedisArgs for FlagPath {
                 Err(_) => "fail".to_string().as_bytes().into(),
             },
         )
-    }
-}
-
-#[cfg(feature = "dynamo-backend")]
-impl Into<HashMap<String, AttributeValue>> for Flag {
-    fn into(self) -> HashMap<String, AttributeValue> {
-        let mut key_attr = AttributeValue::default();
-        key_attr.s = Some(self.key);
-
-        let mut value_attr = AttributeValue::default();
-        match self.value {
-            FlagValue::Bool(true) => {
-                value_attr.bool = Some(true);
-            }
-            _ => {
-                value_attr.bool = Some(false);
-            }
-        }
-
-        let mut version_attr = AttributeValue::default();
-        version_attr.n = Some(self.version.to_string());
-
-        let mut enabled_attr = AttributeValue::default();
-        enabled_attr.bool = Some(self.enabled);
-
-        let mut created_attr = AttributeValue::default();
-        created_attr.n = Some(self.created.to_string());
-
-        let mut updated_attr = AttributeValue::default();
-        updated_attr.n = Some(self.updated.to_string());
-
-        let mut map = HashMap::new();
-        map.insert("key".into(), key_attr);
-        map.insert("value".into(), value_attr);
-        map.insert("version".into(), version_attr);
-        map.insert("enabled".into(), enabled_attr);
-        map.insert("created".into(), created_attr);
-        map.insert("updated".into(), updated_attr);
-
-        map
-    }
-}
-
-#[cfg(feature = "dynamo-backend")]
-impl FromAttrMap<Flag> for Flag {
-    type Error = BannerError;
-
-    fn from_attr_map(mut map: HashMap<String, AttributeValue>) -> Result<Flag, BannerError> {
-        let key = map.remove("key").and_then(|key_data| match key_data.s {
-            Some(key) => Some(key),
-            None => None,
-        });
-        let value = map.get("value").and_then(|value_data| value_data.bool);
-        let version = map.get("version")
-            .and_then(|version_data| match version_data.n {
-                Some(ref version) => version.parse::<u64>().ok(),
-                None => None,
-            });
-        let enabled = map.get("enabled")
-            .and_then(|enabled_data| enabled_data.bool);
-        let created = map.get("created")
-            .and_then(|created_data| match created_data.n {
-                Some(ref created) => created.parse::<u64>().ok(),
-                None => None,
-            });
-        let updated = map.get("updated")
-            .and_then(|updated_data| match updated_data.n {
-                Some(ref updated) => updated.parse::<u64>().ok(),
-                None => None,
-            });
-
-        if let (Some(k), Some(vl), Some(vr), Some(e), Some(c), Some(u)) =
-            (key, value, version, enabled, created, updated)
-        {
-            Ok(Flag {
-                key: k,
-                value: FlagValue::Bool(vl),
-                version: vr,
-                enabled: e,
-                created: c,
-                updated: u,
-            })
-        } else {
-            Err(DynamoError::FailedToParseResponse.into())
-        }
-    }
-}
-
-#[cfg(feature = "dynamo-backend")]
-impl Into<HashMap<String, AttributeValue>> for FlagPath {
-    fn into(self) -> HashMap<String, AttributeValue> {
-        let mut app_attr = AttributeValue::default();
-        app_attr.s = Some(self.app);
-
-        let mut env_attr = AttributeValue::default();
-        env_attr.s = Some(self.env);
-
-        let mut path_attr = AttributeValue::default();
-        path_attr.s = Some(self.path);
-
-        let mut map = HashMap::new();
-        map.insert("app".into(), app_attr);
-        map.insert("env".into(), env_attr);
-        map.insert("path".into(), path_attr);
-
-        map
-    }
-}
-
-#[cfg(feature = "dynamo-backend")]
-impl FromAttrMap<FlagPath> for FlagPath {
-    type Error = BannerError;
-
-    fn from_attr_map(mut map: HashMap<String, AttributeValue>) -> Result<FlagPath, BannerError> {
-        let app = map.remove("app").and_then(|app_data| match app_data.s {
-            Some(app) => Some(app),
-            None => None,
-        });
-        let env = map.remove("env").and_then(|env_data| match env_data.s {
-            Some(env) => Some(env),
-            None => None,
-        });
-
-        if let (Some(a), Some(e)) = (app, env) {
-            Ok(FlagPath::new(a, e))
-        } else {
-            Err(DynamoError::FailedToParseResponse.into())
-        }
     }
 }
 

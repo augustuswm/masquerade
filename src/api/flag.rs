@@ -1,9 +1,7 @@
 use actix_web::*;
 use actix_web::http::StatusCode;
-use futures::{future, Future, Stream};
+use futures::{future, Future};
 use serde_json;
-
-use std::str;
 
 use api::State;
 use api::error::APIError;
@@ -31,6 +29,47 @@ pub fn read<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, 
             Err(APIError::FailedToParseParams)
         }
     }))
+}
+
+pub fn aread<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+    let state = req.state().clone();
+    let flag_req = match FlagReq::from_req(&req) {
+        Ok(res) => res,
+        Err(err) => return Box::new(future::err(err)),
+    };
+
+    if let Some(ref key) = flag_req.key {
+        Box::new(
+            state.aflags().get(&flag_req.path, key)
+                .map_err(|_| APIError::FailedToAccessStore)
+                .and_then(|result| {
+                    if let Some(flag) = result {
+                        serde_json::to_string(&flag)
+                            .map(|val| val.into())
+                            .or(Err(APIError::FailedToSerialize))
+                    } else {
+                        Err(APIError::FailedToFind)
+                    }
+                }) 
+        )
+    } else {
+        Box::new(future::err(APIError::FailedToParseParams))
+    }
+
+    // Box::new(future::ok(()).and_then(move |_| {
+    //     if let Some(ref key) = flag_req.key {
+    //         let flag = match state.flags().get(&flag_req.path, key) {
+    //             Ok(Some(flag)) => Some(flag),
+    //             _ => None,
+    //         }.ok_or(APIError::FailedToFind)?;
+
+    //         Ok(serde_json::to_string(&flag)
+    //             .or(Err(APIError::FailedToSerialize))
+    //             .into())
+    //     } else {
+    //         Err(APIError::FailedToParseParams)
+    //     }
+    // }))
 }
 
 pub fn create<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {

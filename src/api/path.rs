@@ -1,6 +1,6 @@
 use actix_web::*;
 use actix_web::http::StatusCode;
-use futures::{future, Future, Stream};
+use futures::{future, Future};
 use serde_json;
 
 use std::str;
@@ -21,7 +21,6 @@ struct FlagPathReq {
 pub fn create<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
     let ext = req.extensions();
-    let u = ext.get::<User>();
 
     if let Some(u) = ext.get::<User>() {
         let user = u.clone();

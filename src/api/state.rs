@@ -1,41 +1,48 @@
-use error::BannerError;
+use backend_async::AsyncRedisStore;
+use backend::RedisStore;
 use flag::{Flag, FlagPath};
-use store::ThreadedStore;
 use user::User;
 
-pub type FlagStore = ThreadedStore<FlagPath, Flag, Error = BannerError>;
-pub type PathStore = ThreadedStore<String, FlagPath, Error = BannerError>;
-pub type UserStore = ThreadedStore<String, User, Error = BannerError>;
+pub type FlagStore = RedisStore<FlagPath, Flag>;
+pub type AsyncFlagStore = AsyncRedisStore<FlagPath, Flag>;
+pub type PathStore = RedisStore<String, FlagPath>;
+pub type UserStore = RedisStore<String, User>;
 
 pub struct AppState {
-    flag_store: Box<FlagStore>,
-    path_store: Box<PathStore>,
-    user_store: Box<UserStore>,
+    flag_store: FlagStore,
+    a_flag_store: AsyncFlagStore,
+    path_store: PathStore,
+    user_store: UserStore,
 }
 
 impl AppState {
-    pub fn new<F, P, U>(flag_store: F, path_store: P, user_store: U) -> AppState
-    where
-        F: ThreadedStore<FlagPath, Flag, Error = BannerError> + 'static,
-        P: ThreadedStore<String, FlagPath, Error = BannerError> + 'static,
-        U: ThreadedStore<String, User, Error = BannerError> + 'static,
+    pub fn new(
+        flag_store: FlagStore,
+        a_flag_store: AsyncFlagStore,
+        path_store: PathStore,
+        user_store: UserStore) -> AppState
     {
         AppState {
-            flag_store: Box::new(flag_store),
-            path_store: Box::new(path_store),
-            user_store: Box::new(user_store),
+            flag_store: flag_store,
+            a_flag_store: a_flag_store,
+            path_store: path_store,
+            user_store: user_store,
         }
     }
 
-    pub fn flags(&self) -> &Box<ThreadedStore<FlagPath, Flag, Error = BannerError>> {
+    pub fn flags(&self) -> &FlagStore {
         &self.flag_store
     }
 
-    pub fn paths(&self) -> &Box<ThreadedStore<String, FlagPath, Error = BannerError>> {
+    pub fn aflags(&self) -> &AsyncFlagStore {
+        &self.a_flag_store
+    }
+
+    pub fn paths(&self) -> &PathStore {
         &self.path_store
     }
 
-    pub fn users(&self) -> &Box<ThreadedStore<String, User, Error = BannerError>> {
+    pub fn users(&self) -> &UserStore {
         &self.user_store
     }
 }
