@@ -268,7 +268,7 @@ impl<P, T> RedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRedisVal
             })
             .map_err(|err| {
                 error!("Topic connection error {:?}", err);
-                BannerError::RedisAsyncSubConnectionFailure(err)
+                BannerError::RedisAsyncFailure(err)
             })
     }
 }

@@ -80,9 +80,10 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
     }
 
     pub fn notify(&self, _path: &P) -> impl Future<Item = (), Error = BannerError> {
-        self.conn().and_then(|conn| {
-            conn.send::<RespValue>("".into()).map(|_| ()).map_err(|err| err.into())
-        })
+        // self.conn().and_then(|conn| {
+        //     conn.send::<RespValue>(resp_array![""]).map(|_| ()).map_err(|err| err.into())
+        // })
+        future::ok(())
     }
 
     pub fn get(&self, path: &P, key: &str) -> impl Future<Item = Option<T>, Error = BannerError> {
@@ -136,11 +137,11 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
 
         self.conn().and_then(move |conn| {
             conn.send::<Option<T>>(resp_array!["HGET", &full_path, &key])
-                .map_err(|err: AsyncRedisError| err.into())
+                .map_err(|err| err.into())
                 .and_then(move |resp| {
-                    conn.send(resp_array!["HDEL", &full_path, &key])
-                        .map_err(|err: AsyncRedisError| err.into())
-                        .and_then(move |_: ()| {
+                    conn.send::<i32>(resp_array!["HDEL", &full_path, &key])
+                        .map_err(|err| err.into())
+                        .and_then(move |_| {
                             let _ = all_cache.clear();
                             let _ = cache.remove(full_key.as_str());
                             notification.map(|_| resp)
@@ -161,11 +162,11 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
 
         self.conn().and_then(move |conn| {
             conn.send::<Option<T>>(resp_array!["HGET", &full_path, &key])
-                .map_err(|err: AsyncRedisError| err.into())
+                .map_err(|err| err.into())
                 .and_then(move |resp| {
-                    conn.send(resp_array!["HSET", &full_path, &key, item.clone()])
-                        .map_err(|err: AsyncRedisError| err.into())
-                        .and_then(move |_: ()| {
+                    conn.send::<i32>(resp_array!["HSET", &full_path, &key, item.clone()])
+                        .map_err(|err| err.into())
+                        .and_then(move |_| {
                             let _ = all_cache.clear();
                             let _ = cache.insert(full_key, &item);
                             notification.map(|_| resp)

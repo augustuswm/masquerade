@@ -14,7 +14,7 @@ futures = "0.1.18"
 http = "0.1.5"
 log = "0.4.1"
 redis = "0.9.1"
-redis-async = { git = "https://github.com/augustuswm/redis-async-rs.git", branch = "hashmap" }
+redis-async = "0.4.3"
 ring = "0.13.2"
 serde = "1.0.27"
 serde_derive = "1.0.27"

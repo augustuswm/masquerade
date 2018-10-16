@@ -22,15 +22,15 @@ pub fn api(state: State) -> App<State> {
         .middleware(auth::UrlAuth)
         .middleware(auth::BasicAuth)
         .resource("/{app}/{env}/flag/", |r| {
-            r.method(Method::POST).a(flag::create)
+            r.method(Method::POST).a(flag::acreate)
         })
         .resource("/{app}/{env}/flag/{key}/", |r| {
-            r.method(Method::GET).a(flag::read);
-            r.method(Method::POST).a(flag::update);
-            r.method(Method::DELETE).a(flag::delete)
+            r.method(Method::GET).a(flag::aread);
+            r.method(Method::POST).a(flag::aupdate);
+            r.method(Method::DELETE).a(flag::adelete)
         })
         .resource("/{app}/{env}/flags/", |r| {
-            r.method(Method::GET).a(flag::all)
+            r.method(Method::GET).a(flag::aall)
         })
         .resource("/path/", |r| r.method(Method::POST).a(path::create))
         .resource("/paths/", |r| r.method(Method::GET).a(path::all))

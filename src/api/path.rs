@@ -63,6 +63,6 @@ pub fn all<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, E
                         .into(),
                 )
             })
-            .map_err(|_| APIError::FailedToAccessStore)
+            .map_err(APIError::FailedToAccessStore)
     }))
 }

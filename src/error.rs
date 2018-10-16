@@ -10,7 +10,7 @@ pub enum BannerError {
     CachePoisonedError,
     FailedToParsePath,
     RedisFailure(RedisError),
-    RedisAsyncSubConnectionFailure(RedisAsyncError),
+    RedisAsyncFailure(RedisAsyncError),
     RedisAsyncSubMessageFailure,
 
     InvalidRedisConfig,
@@ -27,7 +27,7 @@ impl From<RedisError> for BannerError {
 
 impl From<RedisAsyncError> for BannerError {
     fn from(err: RedisAsyncError) -> BannerError {
-        BannerError::RedisAsyncSubConnectionFailure(err)
+        BannerError::RedisAsyncFailure(err)
     }
 }
 
@@ -39,12 +39,22 @@ impl From<SerdeError> for BannerError {
 
 impl Error for BannerError {
     fn description(&self) -> &str {
-        ""
+        match self {
+            BannerError::CachePoisonedError => "Failed to access cache due to poisoning",
+            BannerError::FailedToParsePath => "Unable to parse into path",
+            BannerError::RedisFailure(err) => err.description(),
+            BannerError::RedisAsyncFailure(err) => err.description(),
+            BannerError::RedisAsyncSubMessageFailure => "Async Redis message failed",
+            BannerError::InvalidRedisConfig => "Can not create RedisStore from invalid config",
+            BannerError::AllCacheMissing => "Full cache is misconfigured",
+            BannerError::FailedToSerializeItem => "Failed to turn item into json",
+            BannerError::UpdatedAtPoisoned => "",
+        }
     }
 }
 
 impl fmt::Display for BannerError {
-    fn fmt(&self, _: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        Ok(())
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "{}", self.description())
     }
 }

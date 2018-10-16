@@ -32,4 +32,8 @@ impl FlagReq {
             Err(APIError::Unauthorized)
         }
     }
+
+    pub fn parts(self) -> (FlagPath, Option<String>) {
+        (self.path, self.key)
+    }
 }

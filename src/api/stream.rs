@@ -35,7 +35,7 @@ pub fn flag_stream<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRes
                     stream
                         .map_err(|err| { 
                             println!("Failed to access store {:?}", err);
-                            APIError::FailedToAccessStore
+                            APIError::FailedToAccessStore(err)
                         })
                         .map(move |_| {
                         state
