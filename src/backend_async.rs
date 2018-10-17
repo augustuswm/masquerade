@@ -80,10 +80,11 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
     }
 
     pub fn notify(&self, _path: &P) -> impl Future<Item = (), Error = BannerError> {
-        // self.conn().and_then(|conn| {
-        //     conn.send::<RespValue>(resp_array![""]).map(|_| ()).map_err(|err| err.into())
-        // })
-        future::ok(())
+        let topic = self.topic.clone();
+
+        self.conn().and_then(|conn| {
+            conn.send::<i32>(resp_array!["PUBLISH", topic, "update"]).map(|_| ()).map_err(|err| err.into())
+        })
     }
 
     pub fn get(&self, path: &P, key: &str) -> impl Future<Item = Option<T>, Error = BannerError> {

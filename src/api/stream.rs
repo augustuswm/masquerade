@@ -20,7 +20,7 @@ pub fn flag_stream<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRes
     let state = req.state().clone();
     let path = flag_req.path;
 
-    Box::new(state.flags().update_sub()
+    Box::new(state.aflags().update_sub()
         .map(|stream| {
             HttpResponse::Ok()
                 .header(http::header::CACHE_CONTROL, "no-cache")
@@ -37,19 +37,20 @@ pub fn flag_stream<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRes
                             println!("Failed to access store {:?}", err);
                             APIError::FailedToAccessStore(err)
                         })
-                        .map(move |_| {
-                        state
-                            .flags()
-                            .get_all(&path)
-                            .and_then(|flags| {
-                                let mut flag_list = flags.values().collect::<Vec<&Flag>>();
-                                flag_list
-                                    .as_mut_slice()
-                                    .sort_by(|&a, &b| a.key().cmp(b.key()));
-                                serde_json::to_string(&flag_list).map_err(|err| err.into())
-                            })
-                            .map(|json| HEADER.to_string() + "data:" + &json + "\n\n")
-                            .map(|event| Bytes::from(event)).unwrap()
+                        .and_then(move |_| {
+                            state
+                                .aflags()
+                                .get_all(&path)
+                                .map_err(APIError::FailedToAccessStore)
+                                .and_then(|flags| {
+                                    let mut flag_list = flags.values().collect::<Vec<&Flag>>();
+                                    flag_list
+                                        .as_mut_slice()
+                                        .sort_by(|&a, &b| a.key().cmp(b.key()));
+                                    serde_json::to_string(&flag_list).map_err(|err| err.into())
+                                })
+                                .map(|json| HEADER.to_string() + "data:" + &json + "\n\n")
+                                .map(|event| Bytes::from(event))
                         })
                 )
         })
