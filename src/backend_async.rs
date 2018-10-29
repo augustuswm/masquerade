@@ -83,7 +83,9 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         let topic = self.topic.clone();
 
         self.conn().and_then(|conn| {
-            conn.send::<i32>(resp_array!["PUBLISH", topic, "update"]).map(|_| ()).map_err(|err| err.into())
+            conn.send::<i32>(resp_array!["PUBLISH", topic, "update"]).map(|_| {
+                ()
+            }).map_err(|err| err.into())
         })
     }
 
@@ -93,7 +95,7 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         let full_key = self.full_key(&path, &key);
         let cache = self.cache.clone();
 
-        match cache.get(self.full_key(&path, &key).as_str()) {
+        match cache.get(full_key.as_str()) {
             Ok(Some(item)) => Either::A(future::ok(Some(item))),
             _ => Either::B(self.conn().and_then(move |conn| {
                   conn.send(resp_array!["HGET", full_path, &key])
@@ -163,7 +165,9 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
 
         self.conn().and_then(move |conn| {
             conn.send::<Option<T>>(resp_array!["HGET", &full_path, &key])
-                .map_err(|err| err.into())
+                .map_err(|err| {
+                    err.into()
+                })
                 .and_then(move |resp| {
                     conn.send::<i32>(resp_array!["HSET", &full_path, &key, item.clone()])
                         .map_err(|err| err.into())
@@ -185,6 +189,11 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
 
 #[cfg(test)]
 mod tests {
+    use futures::{Future};
+    use futures::future::ok;
+    use tokio::runtime::current_thread::Runtime;
+    use tokio::timer::Timeout;
+
     use flag::*;
 
     use super::*;
@@ -201,24 +210,30 @@ mod tests {
 
     fn dataset(p: &str, dur: u64) -> AsyncRedisStore<FlagPath, Flag> {
         let addr = "127.0.0.1:6379".to_string().parse().unwrap();
+        let prefix = "async_".to_string() + p;
+        let topic = "async_masquerade_".to_string() + p;
 
-        let store = AsyncRedisStore::open(addr, "masquerade", Some(p), Some(Duration::new(dur, 0)));
+        let store = AsyncRedisStore::open(addr, topic, Some(prefix), Some(Duration::new(dur, 0)));
         let flags = vec![f("f1", false), f("f2", true)];
 
         for flag in flags.into_iter() {
-            let _ = store.upsert(&path(), flag.key(), &flag);
+            let _ = run(store.upsert(&path(), flag.key(), &flag));
         }
 
         store
+    }
+
+    fn run<F>(to_run: F) -> F::Item where F: Future {
+        Runtime::new().unwrap().block_on(to_run).map_err(|_| ()).unwrap()
     }
 
     #[test]
     fn test_gets_items() {
         let data = dataset("get_items", 0);
 
-        // assert_eq!(data.get(&path(), "f1").unwrap().unwrap(), f("f1", false));
-        // assert_eq!(data.get(&path(), "f2").unwrap().unwrap(), f("f2", true));
-        // assert!(data.get(&path(), "f3").unwrap().is_none());
+        assert_eq!(run(data.get(&path(), "f1")).unwrap(), f("f1", false));
+        assert_eq!(run(data.get(&path(), "f2")).unwrap(), f("f2", true));
+        assert!(run(data.get(&path(), "f3")).is_none());
     }
 
     #[test]
@@ -228,95 +243,116 @@ mod tests {
         test_map.insert("f2", f("f2", true));
         let dataset = dataset("all_items", 0);
 
-        let res = dataset.get_all(&path());
+        let map = run(dataset.get_all(&path()));
 
-        // assert!(res.is_ok());
-
-        // let map = res.unwrap();
-        // assert_eq!(map.len(), test_map.len());
-        // assert_eq!(map.get("f1").unwrap(), test_map.get("f1").unwrap());
-        // assert_eq!(map.get("f2").unwrap(), test_map.get("f2").unwrap());
+        assert_eq!(map.len(), test_map.len());
+        assert_eq!(map.get("f1").unwrap(), test_map.get("f1").unwrap());
+        assert_eq!(map.get("f2").unwrap(), test_map.get("f2").unwrap());
     }
 
     #[test]
     fn test_deletes_without_cache() {
         let data = dataset("delete_no_cache", 0);
 
-        // assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+        assert_eq!(run(data.get_all(&path())).len(), 2);
 
         // Test flag #1
-        let f1 = data.delete(&path(), "f1");
-        // assert_eq!(f1.unwrap().unwrap(), f("f1", false));
+        let f1 = run(data.delete(&path(), "f1"));
+        assert_eq!(f1.unwrap(), f("f1", false));
 
-        let f1_2 = data.get(&path(), "f1");
-        // assert!(f1_2.unwrap().is_none());
+        let f1_2 = run(data.get(&path(), "f1"));
+        assert!(f1_2.is_none());
 
         // Test flag #2
-        let f2 = data.delete(&path(), "f2");
-        // assert_eq!(f2.unwrap().unwrap(), f("f2", true));
+        let f2 = run(data.delete(&path(), "f2"));
+        assert_eq!(f2.unwrap(), f("f2", true));
 
-        let f2_2 = data.get(&path(), "f2");
-        // assert!(f2_2.unwrap().is_none());
+        let f2_2 = run(data.get(&path(), "f2"));
+        assert!(f2_2.is_none());
 
-        // assert_eq!(data.get_all(&path()).unwrap().len(), 0);
+        assert_eq!(run(data.get_all(&path())).len(), 0);
     }
 
     #[test]
     fn test_deletes_with_cache() {
         let data = dataset("delete_cache", 30);
 
-        // assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+        assert_eq!(run(data.get_all(&path())).len(), 2);
 
         // Test flag #1
-        let f1 = data.delete(&path(), "f1");
-        // assert_eq!(f1.unwrap().unwrap(), f("f1", false));
+        let f1 = run(data.delete(&path(), "f1"));
+        assert_eq!(f1.unwrap(), f("f1", false));
 
-        let f1_2 = data.get(&path(), "f1");
-        // assert!(f1_2.unwrap().is_none());
+        let f1_2 = run(data.get(&path(), "f1"));
+        assert!(f1_2.is_none());
 
         // Test flag #2
-        let f2 = data.delete(&path(), "f2");
-        // assert_eq!(f2.unwrap().unwrap(), f("f2", true));
+        let f2 = run(data.delete(&path(), "f2"));
+        assert_eq!(f2.unwrap(), f("f2", true));
 
-        let f2_2 = data.get(&path(), "f2");
-        // assert!(f2_2.unwrap().is_none());
+        let f2_2 = run(data.get(&path(), "f2"));
+        assert!(f2_2.is_none());
 
-        // assert_eq!(data.get_all(&path()).unwrap().len(), 0);
+        assert_eq!(run(data.get_all(&path())).len(), 0);
     }
 
     #[test]
     fn test_replacements_without_cache() {
         let data = dataset("replace_no_cache", 0);
 
-        // assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+        assert_eq!(run(data.get_all(&path())).len(), 2);
 
         // Test flag #1
-        let f1 = data.upsert(&path(), "f1", &f("f1", true));
-        // assert_eq!(f1.unwrap().unwrap(), f("f1", false));
+        let f1 = run(data.upsert(&path(), "f1", &f("f1", true)));
+        assert_eq!(f1.unwrap(), f("f1", false));
 
-        let f1_2 = data.get(&path(), "f1");
-        // assert_eq!(f1_2.unwrap().unwrap(), f("f1", true));
+        let f1_2 = run(data.get(&path(), "f1"));
+        assert_eq!(f1_2.unwrap(), f("f1", true));
 
-        // assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+        assert_eq!(run(data.get_all(&path())).len(), 2);
     }
 
     #[test]
     fn test_replacements_with_cache() {
         let data = dataset("replace_cache", 30);
 
-        // assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+        assert_eq!(run(data.get_all(&path())).len(), 2);
 
         // Test flag #1
-        let f1 = data.upsert(&path(), "f1", &f("f1", true));
-        // assert_eq!(f1.unwrap().unwrap(), f("f1", false));
+        let f1 = run(data.upsert(&path(), "f1", &f("f1", true)));
+        assert_eq!(f1.unwrap(), f("f1", false));
 
-        let f1_2 = data.get(&path(), "f1");
-        // assert_eq!(f1_2.unwrap().unwrap(), f("f1", true));
+        let f1_2 = run(data.get(&path(), "f1"));
+        assert_eq!(f1_2.unwrap(), f("f1", true));
 
-        // assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+        assert_eq!(run(data.get_all(&path())).len(), 2);
     }
 
-    // TODO: Add subscription test
+    #[test]
+    fn test_subscribes_and_notifies() {
+        let data = dataset("pub_sub", 0);
+        let mut runner = Runtime::new().unwrap();
 
-    // TODO: Add notify test
+        let sub = Timeout::new(data.update_sub()
+            .map_err(|_| ())
+            .and_then(|sub_conn| {
+                sub_conn.take(1).for_each(|v| {
+                    ok(v)
+                }).map_err(|_| ())
+            }), Duration::new(2, 0));
+
+        // TODO: Fix me so I don't randomly fail
+
+        let notify1 = data.notify(&path()).map_err(|_| ());
+        let notify2 = data.notify(&path()).map_err(|_| ());
+        let notify3 = data.notify(&path()).map_err(|_| ());
+        
+        runner.spawn(notify1);
+        runner.spawn(notify2);
+        runner.spawn(notify3);
+
+        let res = runner.block_on(sub).into_iter().next().unwrap();
+
+        assert_eq!((), res);
+    }
 }
