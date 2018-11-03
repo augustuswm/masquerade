@@ -79,6 +79,10 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         [self.key.as_str(), ":", path.as_ref(), "/", key].concat()
     }
 
+    pub fn topic(&self) -> &str {
+        self.topic.as_str()
+    }
+
     pub fn notify(&self, _path: &P) -> impl Future<Item = (), Error = BannerError> {
         let topic = self.topic.clone();
 
@@ -192,7 +196,7 @@ mod tests {
     use futures::{Future};
     use futures::future::ok;
     use tokio::runtime::current_thread::Runtime;
-    use tokio::timer::Timeout;
+    use tokio::timer::{Interval, Timeout};
 
     use flag::*;
 
@@ -331,27 +335,32 @@ mod tests {
     #[test]
     fn test_subscribes_and_notifies() {
         let data = dataset("pub_sub", 0);
+        println!("{:?}", data.topic());
+
         let mut runner = Runtime::new().unwrap();
+
+        // FIXME: I'm sure there is a better way to test this.
+        // Can not figure it out currently. 
 
         let sub = Timeout::new(data.update_sub()
             .map_err(|_| ())
             .and_then(|sub_conn| {
+                println!("get conn");
                 sub_conn.take(1).for_each(|v| {
+                    println!("stream item {:?}", v);
                     ok(v)
                 }).map_err(|_| ())
             }), Duration::new(2, 0));
 
-        // TODO: Fix me so I don't randomly fail
+        let notifier = Interval::new_interval(Duration::new(1, 0))
+            .take(1)
+            .map_err(|_| ())
+            .for_each(move |_| data.notify(&path()).map_err(|_| ()))
+            .map(|_| ());
 
-        let notify1 = data.notify(&path()).map_err(|_| ());
-        let notify2 = data.notify(&path()).map_err(|_| ());
-        let notify3 = data.notify(&path()).map_err(|_| ());
-        
-        runner.spawn(notify1);
-        runner.spawn(notify2);
-        runner.spawn(notify3);
+        runner.spawn(notifier);
 
-        let res = runner.block_on(sub).into_iter().next().unwrap();
+        let res = runner.block_on(sub).unwrap();
 
         assert_eq!((), res);
     }

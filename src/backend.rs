@@ -273,161 +273,161 @@ impl<P, T> RedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRedisVal
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use flag::*;
+// #[cfg(test)]
+// mod tests {
+//     use flag::*;
 
-    use super::*;
+//     use super::*;
 
-    const PATH: &'static str = "the-owner-uuid-value:app:env";
+//     const PATH: &'static str = "the-owner-uuid-value:app:env";
 
-    fn f<S: Into<String>>(key: S, enabled: bool) -> Flag {
-        Flag::new(key, FlagValue::Bool(true), 1, enabled)
-    }
+//     fn f<S: Into<String>>(key: S, enabled: bool) -> Flag {
+//         Flag::new(key, FlagValue::Bool(true), 1, enabled)
+//     }
 
-    fn path() -> FlagPath {
-        PATH.parse::<FlagPath>().unwrap()
-    }
+//     fn path() -> FlagPath {
+//         PATH.parse::<FlagPath>().unwrap()
+//     }
 
-    fn dataset(p: &str, dur: u64) -> RedisStore<FlagPath, Flag> {
-        let store =
-            RedisStore::open("0.0.0.0", 6379, Some(p), Some(Duration::new(dur, 0))).unwrap();
-        let flags = vec![f("f1", false), f("f2", true)];
+//     fn dataset(p: &str, dur: u64) -> RedisStore<FlagPath, Flag> {
+//         let store =
+//             RedisStore::open("0.0.0.0", 6379, Some(p), Some(Duration::new(dur, 0))).unwrap();
+//         let flags = vec![f("f1", false), f("f2", true)];
 
-        for flag in flags.into_iter() {
-            let _ = store.upsert(&path(), flag.key(), &flag);
-        }
+//         for flag in flags.into_iter() {
+//             let _ = store.upsert(&path(), flag.key(), &flag);
+//         }
 
-        store
-    }
+//         store
+//     }
 
-    #[test]
-    fn test_gets_items() {
-        let data = dataset("get_items", 0);
+//     #[test]
+//     fn test_gets_items() {
+//         let data = dataset("get_items", 0);
 
-        assert_eq!(data.get(&path(), "f1").unwrap().unwrap(), f("f1", false));
-        assert_eq!(data.get(&path(), "f2").unwrap().unwrap(), f("f2", true));
-        assert!(data.get(&path(), "f3").unwrap().is_none());
-    }
+//         assert_eq!(data.get(&path(), "f1").unwrap().unwrap(), f("f1", false));
+//         assert_eq!(data.get(&path(), "f2").unwrap().unwrap(), f("f2", true));
+//         assert!(data.get(&path(), "f3").unwrap().is_none());
+//     }
 
-    #[test]
-    fn test_gets_all_items() {
-        let mut test_map = HashMap::new();
-        test_map.insert("f1", f("f1", false));
-        test_map.insert("f2", f("f2", true));
+//     #[test]
+//     fn test_gets_all_items() {
+//         let mut test_map = HashMap::new();
+//         test_map.insert("f1", f("f1", false));
+//         test_map.insert("f2", f("f2", true));
 
-        let res = dataset("all_items", 0).get_all(&path());
+//         let res = dataset("all_items", 0).get_all(&path());
 
-        assert!(res.is_ok());
+//         assert!(res.is_ok());
 
-        let map = res.unwrap();
-        assert_eq!(map.len(), test_map.len());
-        assert_eq!(map.get("f1").unwrap(), test_map.get("f1").unwrap());
-        assert_eq!(map.get("f2").unwrap(), test_map.get("f2").unwrap());
-    }
+//         let map = res.unwrap();
+//         assert_eq!(map.len(), test_map.len());
+//         assert_eq!(map.get("f1").unwrap(), test_map.get("f1").unwrap());
+//         assert_eq!(map.get("f2").unwrap(), test_map.get("f2").unwrap());
+//     }
 
-    #[test]
-    fn test_deletes_without_cache() {
-        let data = dataset("delete_no_cache", 0);
+//     #[test]
+//     fn test_deletes_without_cache() {
+//         let data = dataset("delete_no_cache", 0);
 
-        assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+//         assert_eq!(data.get_all(&path()).unwrap().len(), 2);
 
-        // Test flag #1
-        let f1 = data.delete(&path(), "f1");
-        assert_eq!(f1.unwrap().unwrap(), f("f1", false));
+//         // Test flag #1
+//         let f1 = data.delete(&path(), "f1");
+//         assert_eq!(f1.unwrap().unwrap(), f("f1", false));
 
-        let f1_2 = data.get(&path(), "f1");
-        assert!(f1_2.unwrap().is_none());
+//         let f1_2 = data.get(&path(), "f1");
+//         assert!(f1_2.unwrap().is_none());
 
-        // Test flag #2
-        let f2 = data.delete(&path(), "f2");
-        assert_eq!(f2.unwrap().unwrap(), f("f2", true));
+//         // Test flag #2
+//         let f2 = data.delete(&path(), "f2");
+//         assert_eq!(f2.unwrap().unwrap(), f("f2", true));
 
-        let f2_2 = data.get(&path(), "f2");
-        assert!(f2_2.unwrap().is_none());
+//         let f2_2 = data.get(&path(), "f2");
+//         assert!(f2_2.unwrap().is_none());
 
-        assert_eq!(data.get_all(&path()).unwrap().len(), 0);
-    }
+//         assert_eq!(data.get_all(&path()).unwrap().len(), 0);
+//     }
 
-    #[test]
-    fn test_deletes_with_cache() {
-        let data = dataset("delete_cache", 30);
+//     #[test]
+//     fn test_deletes_with_cache() {
+//         let data = dataset("delete_cache", 30);
 
-        assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+//         assert_eq!(data.get_all(&path()).unwrap().len(), 2);
 
-        // Test flag #1
-        let f1 = data.delete(&path(), "f1");
-        assert_eq!(f1.unwrap().unwrap(), f("f1", false));
+//         // Test flag #1
+//         let f1 = data.delete(&path(), "f1");
+//         assert_eq!(f1.unwrap().unwrap(), f("f1", false));
 
-        let f1_2 = data.get(&path(), "f1");
-        assert!(f1_2.unwrap().is_none());
+//         let f1_2 = data.get(&path(), "f1");
+//         assert!(f1_2.unwrap().is_none());
 
-        // Test flag #2
-        let f2 = data.delete(&path(), "f2");
-        assert_eq!(f2.unwrap().unwrap(), f("f2", true));
+//         // Test flag #2
+//         let f2 = data.delete(&path(), "f2");
+//         assert_eq!(f2.unwrap().unwrap(), f("f2", true));
 
-        let f2_2 = data.get(&path(), "f2");
-        assert!(f2_2.unwrap().is_none());
+//         let f2_2 = data.get(&path(), "f2");
+//         assert!(f2_2.unwrap().is_none());
 
-        assert_eq!(data.get_all(&path()).unwrap().len(), 0);
-    }
+//         assert_eq!(data.get_all(&path()).unwrap().len(), 0);
+//     }
 
-    #[test]
-    fn test_delete_changes_timestamp() {
-        let data = dataset("replace_no_cache", 0);
-        let _ = data.upsert(&path(), "f1", &f("f1", true));
-        let t1 = data.updated_at().unwrap();
-        ::std::thread::sleep(::std::time::Duration::from_millis(50));
-        let _ = data.delete(&path(), "f1");
-        let t2 = data.updated_at().unwrap();
+//     #[test]
+//     fn test_delete_changes_timestamp() {
+//         let data = dataset("replace_no_cache", 0);
+//         let _ = data.upsert(&path(), "f1", &f("f1", true));
+//         let t1 = data.updated_at().unwrap();
+//         ::std::thread::sleep(::std::time::Duration::from_millis(50));
+//         let _ = data.delete(&path(), "f1");
+//         let t2 = data.updated_at().unwrap();
 
-        assert!(t2 > t1);
-    }
+//         assert!(t2 > t1);
+//     }
 
-    #[test]
-    fn test_replacements_without_cache() {
-        let data = dataset("replace_no_cache", 0);
+//     #[test]
+//     fn test_replacements_without_cache() {
+//         let data = dataset("replace_no_cache", 0);
 
-        assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+//         assert_eq!(data.get_all(&path()).unwrap().len(), 2);
 
-        // Test flag #1
-        let f1 = data.upsert(&path(), "f1", &f("f1", true));
-        assert_eq!(f1.unwrap().unwrap(), f("f1", false));
+//         // Test flag #1
+//         let f1 = data.upsert(&path(), "f1", &f("f1", true));
+//         assert_eq!(f1.unwrap().unwrap(), f("f1", false));
 
-        let f1_2 = data.get(&path(), "f1");
-        assert_eq!(f1_2.unwrap().unwrap(), f("f1", true));
+//         let f1_2 = data.get(&path(), "f1");
+//         assert_eq!(f1_2.unwrap().unwrap(), f("f1", true));
 
-        assert_eq!(data.get_all(&path()).unwrap().len(), 2);
-    }
+//         assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+//     }
 
-    #[test]
-    fn test_replacements_with_cache() {
-        let data = dataset("replace_cache", 30);
+//     #[test]
+//     fn test_replacements_with_cache() {
+//         let data = dataset("replace_cache", 30);
 
-        assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+//         assert_eq!(data.get_all(&path()).unwrap().len(), 2);
 
-        // Test flag #1
-        let f1 = data.upsert(&path(), "f1", &f("f1", true));
-        assert_eq!(f1.unwrap().unwrap(), f("f1", false));
+//         // Test flag #1
+//         let f1 = data.upsert(&path(), "f1", &f("f1", true));
+//         assert_eq!(f1.unwrap().unwrap(), f("f1", false));
 
-        let f1_2 = data.get(&path(), "f1");
-        assert_eq!(f1_2.unwrap().unwrap(), f("f1", true));
+//         let f1_2 = data.get(&path(), "f1");
+//         assert_eq!(f1_2.unwrap().unwrap(), f("f1", true));
 
-        assert_eq!(data.get_all(&path()).unwrap().len(), 2);
-    }
+//         assert_eq!(data.get_all(&path()).unwrap().len(), 2);
+//     }
 
-    #[test]
-    fn test_update_changes_timestamp() {
-        let data = dataset("replace_no_cache", 0);
-        let t1 = data.updated_at().unwrap();
-        ::std::thread::sleep(::std::time::Duration::from_millis(50));
-        let _ = data.upsert(&path(), "f1", &f("f1", true));
-        let t2 = data.updated_at().unwrap();
+//     #[test]
+//     fn test_update_changes_timestamp() {
+//         let data = dataset("replace_no_cache", 0);
+//         let t1 = data.updated_at().unwrap();
+//         ::std::thread::sleep(::std::time::Duration::from_millis(50));
+//         let _ = data.upsert(&path(), "f1", &f("f1", true));
+//         let t2 = data.updated_at().unwrap();
 
-        assert!(t2 > t1);
-    }
+//         assert!(t2 > t1);
+//     }
 
-    // TODO: Add subscription test
+//     // TODO: Add subscription test
 
-    // TODO: Add notify test
-}
+//     // TODO: Add notify test
+// }
