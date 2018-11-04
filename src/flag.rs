@@ -226,8 +226,13 @@ impl FromResp for Flag {
 
 impl Into<RespValue> for Flag {
     fn into(self: Self) -> RespValue {
-        let ser = serde_json::to_string(&self);
-        RespValue::BulkString(ser.unwrap().as_bytes().to_vec())
+        let res = serde_json::to_string(&self);
+
+        match res {
+            Ok(ser) => RespValue::BulkString(ser.as_bytes().to_vec()),
+            Err(_) => RespValue::BulkString("fail".as_bytes().to_vec())
+        }
+        
     }
 }
 

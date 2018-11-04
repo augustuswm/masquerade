@@ -1,3 +1,5 @@
+use actix_web::actix::spawn;
+
 use backend_async::AsyncRedisStore;
 use backend::RedisStore;
 use flag::{Flag, FlagPath};

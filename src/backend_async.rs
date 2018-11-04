@@ -2,13 +2,13 @@ use futures::{future, Future, Stream};
 use futures::future::Either;
 use redis_async::client::paired::{paired_connect, PairedConnection};
 use redis_async::client::pubsub::{pubsub_connect, PubsubStream};
-use redis_async::error::Error as AsyncRedisError;
+
 use redis_async::resp::{FromResp, RespValue};
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
+
+use std::time::{Duration};
 
 use error::BannerError;
 use hash_cache::HashCache;
@@ -58,7 +58,6 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         prefix.map(|p| p.into()).unwrap_or("banner".into()) + ":features"
     }
 
-    // fn conn(&self) -> AsyncRedisStoreResult<Connection> {
     fn conn(&self) -> impl Future<Item = PairedConnection, Error = BannerError> {
         paired_connect(&self.address).map_err(|err| err.into())
     }
@@ -77,10 +76,6 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
 
     fn full_key(&self, path: &P, key: &str) -> String {
         [self.key.as_str(), ":", path.as_ref(), "/", key].concat()
-    }
-
-    pub fn topic(&self) -> &str {
-        self.topic.as_str()
     }
 
     pub fn notify(&self, _path: &P) -> impl Future<Item = (), Error = BannerError> {
@@ -167,13 +162,19 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         let cache = self.cache.clone();
         let notification = self.notify(&path);
 
-        self.conn().and_then(move |conn| {
+        let ser: RespValue = item.clone().into();
+
+        if ser == RespValue::BulkString(FAIL.to_vec()) {
+            return Either::A(future::err(BannerError::FailedToSerializeItem))
+        }
+
+        Either::B(self.conn().and_then(move |conn| {
             conn.send::<Option<T>>(resp_array!["HGET", &full_path, &key])
                 .map_err(|err| {
                     err.into()
                 })
                 .and_then(move |resp| {
-                    conn.send::<i32>(resp_array!["HSET", &full_path, &key, item.clone()])
+                    conn.send::<i32>(resp_array!["HSET", &full_path, &key, item.clone().into()])
                         .map_err(|err| err.into())
                         .and_then(move |_| {
                             let _ = all_cache.clear();
@@ -181,13 +182,27 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
                             notification.map(|_| resp)
                         })
                 })
-        })
+        }))
     }
 
     pub fn update_sub(&self) -> impl Future<Item = impl Stream<Item = (), Error = BannerError>, Error = BannerError> {
         self.stream_conn().map(|stream| {
             stream.map(|_| ()).map_err(|_| BannerError::RedisAsyncSubMessageFailure)
         })
+    }
+
+    pub fn updater(&self) -> impl Future<Item = (), Error = ()> {
+        let all_cache = self.all_cache.clone();
+
+        self.stream_conn()
+            .map_err(|_| ())
+            .and_then(move |stream| {
+                stream.for_each(move |_| {
+                    let _ = all_cache.clear();
+                    info!("Received update. Clearing all_cache");
+                    future::ok(())
+                }).map_err(|_| ())
+            })
     }
 }
 
@@ -335,7 +350,6 @@ mod tests {
     #[test]
     fn test_subscribes_and_notifies() {
         let data = dataset("pub_sub", 0);
-        println!("{:?}", data.topic());
 
         let mut runner = Runtime::new().unwrap();
 
@@ -345,15 +359,12 @@ mod tests {
         let sub = Timeout::new(data.update_sub()
             .map_err(|_| ())
             .and_then(|sub_conn| {
-                println!("get conn");
                 sub_conn.take(1).for_each(|v| {
-                    println!("stream item {:?}", v);
                     ok(v)
                 }).map_err(|_| ())
             }), Duration::new(2, 0));
 
         let notifier = Interval::new_interval(Duration::new(1, 0))
-            .take(1)
             .map_err(|_| ())
             .for_each(move |_| data.notify(&path()).map_err(|_| ()))
             .map(|_| ());
