@@ -2,7 +2,6 @@ use futures::{future, Future, Stream};
 use futures::future::Either;
 use redis_async::client::paired::{paired_connect, PairedConnection};
 use redis_async::client::pubsub::{pubsub_connect, PubsubStream};
-
 use redis_async::resp::{FromResp, RespValue};
 
 use std::collections::HashMap;
@@ -203,6 +202,40 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
                     future::ok(())
                 }).map_err(|_| ())
             })
+    }
+}
+
+macro_rules! redis_conversions {
+    ($struct:ident) => {
+        impl FromResp for $struct {
+            fn from_resp_int(resp: RespValue) -> Result<$struct, RedisAsyncError> {
+                match resp {
+                    RespValue::BulkString(ref bytes) => {
+                        serde_json::from_str(&String::from_utf8_lossy(bytes)).or_else(|_| {
+                            Err(redis_async::error::resp("Cannot convert into a $struct", redis_async::resp::RespValue::BulkString(bytes.to_owned())))
+                        })
+                    },
+                    RespValue::SimpleString(ref string) => {
+                        serde_json::from_str(string.as_str()).or_else(|_| {
+                            Err(redis_async::error::resp("Cannot convert into a $struct", resp.to_owned()))
+                        })
+                    },
+                    _ => Err(redis_async::error::resp("Cannot convert into a $struct", resp)),
+                }
+            }
+        }
+
+        impl Into<RespValue> for $struct {
+            fn into(self: Self) -> RespValue {
+                let res = serde_json::to_string(&self);
+
+                match res {
+                    Ok(ser) => RespValue::BulkString(ser.as_bytes().to_vec()),
+                    Err(_) => RespValue::BulkString("fail".as_bytes().to_vec())
+                }
+                
+            }
+        }
     }
 }
 

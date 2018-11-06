@@ -20,44 +20,45 @@ extern crate serde_json;
 extern crate tokio;
 extern crate uuid;
 
+use futures::Future;
+use tokio::runtime::current_thread::Runtime;
+
 use std::env;
 
 mod api;
+#[macro_use]
+mod backend_async;
 mod error;
 mod flag;
 mod hash_cache;
-mod backend;
-mod backend_async;
 mod user;
 
+
+fn run<F>(to_run: F) -> F::Item where F: Future {
+    Runtime::new().unwrap().block_on(to_run).map_err(|_| ()).unwrap()
+}
+
 fn sync() {
-    let apps = backend::RedisStore::open(
-        env::var("REDIS_HOST").unwrap_or("redis".to_string()),
-        6379,
-        Some("banner"),
-        None,
-    ).unwrap();
-
-    let flags = backend::RedisStore::open(
-        env::var("REDIS_HOST").unwrap_or("redis".to_string()),
-        6379,
-        Some("banner"),
-        None,
-    ).unwrap();
-
-    let aflags = backend_async::AsyncRedisStore::open(
+    let a_apps = backend_async::AsyncRedisStore::open(
         "127.0.0.1:6379".parse().unwrap(),
         "masquerade",
         Some("banner"),
         None,
     );
 
-    let users = backend::RedisStore::open(
-        env::var("REDIS_HOST").unwrap_or("redis".to_string()),
-        6379,
+    let a_flags = backend_async::AsyncRedisStore::open(
+        "127.0.0.1:6379".parse().unwrap(),
+        "masquerade",
         Some("banner"),
         None,
-    ).unwrap();
+    );
+
+    let a_users = backend_async::AsyncRedisStore::open(
+        "127.0.0.1:6379".parse().unwrap(),
+        "masquerade",
+        Some("banner"),
+        None,
+    );
 
     let flag = flag::Flag::new("f1", flag::FlagValue::Bool(true), 1, true);
 
@@ -72,16 +73,16 @@ fn sync() {
         .parse::<flag::FlagPath>()
         .unwrap();
 
-    let _ = apps.upsert(
+    let _ = run(a_apps.upsert(
         &"paths".to_string(),
         &(u.uuid.clone() + ":test_app:test_env"),
         &a,
-    );
+    ));
 
-    let _ = flags.upsert(&a, "f1", &flag);
-    let _ = users.upsert(&"users".to_string(), "dev", &u);
+    let _ = run(a_flags.upsert(&a, "f1", &flag));
+    let _ = run(a_users.upsert(&"users".to_string(), "dev", &u));
 
-    api::boot(flags, aflags, apps, users);
+    api::boot(a_flags, a_apps, a_users);
 }
 
 fn main() {

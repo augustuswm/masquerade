@@ -24,12 +24,12 @@ pub fn init_listener(a_flag_store: &state::AsyncFlagStore) {
   });
 }
 
-pub fn boot(flags: state::FlagStore, aflags: state::AsyncFlagStore, paths: state::PathStore, users: state::UserStore)
+pub fn boot(flags: state::AsyncFlagStore, paths: state::AsyncFlagPathStore, users: state::AsyncUserStore)
 {
-    let state = Arc::new(state::AppState::new(flags, aflags, paths, users));
+    let state = Arc::new(state::AppState::new(flags, paths, users));
 
     server::new(move || {
-      init_listener(state.aflags());
+      init_listener(state.flags());
       vec![app::api(state.clone()), app::frontend(state.clone())]
     })
         .bind("0.0.0.0:8088")

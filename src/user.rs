@@ -1,3 +1,7 @@
+use redis_async;
+use redis_async::error::Error as RedisAsyncError;
+use redis_async::resp::{FromResp, RespValue};
+        
 use redis::{ErrorKind, FromRedisValue, RedisResult, ToRedisArgs, Value as RedisValue};
 use ring::{digest, pbkdf2};
 use serde_json;
@@ -73,44 +77,4 @@ impl User {
     }
 }
 
-impl FromRedisValue for User {
-    fn from_redis_value(v: &RedisValue) -> RedisResult<User> {
-        match *v {
-            RedisValue::Data(ref data) => {
-                let data = String::from_utf8(data.clone());
-
-                data.or_else(|_| Err((ErrorKind::TypeError, "Expected utf8 string").into()))
-                    .and_then(|ser| {
-                        serde_json::from_str(ser.as_str()).or_else(|_| {
-                            let err = (ErrorKind::TypeError, "Unable to deserialize json to User");
-                            Err(err.into())
-                        })
-                    })
-            }
-            _ => {
-                let err = (
-                    ErrorKind::TypeError,
-                    "Recieved non-data type for deserializing",
-                );
-                Err(err.into())
-            }
-        }
-    }
-}
-
-impl<'a> ToRedisArgs for User {
-    fn write_redis_args(&self, out: &mut Vec<Vec<u8>>) {
-        let ser = serde_json::to_string(&self);
-
-        out.push(
-            match ser {
-                Ok(json) => json.as_bytes().into(),
-
-                // Because this trait can not normally fail, but json serialization
-                // can fail, the failure cause is encoded as a special value that
-                // is checked by the store
-                Err(_) => "fail".to_string().as_bytes().into(),
-            },
-        )
-    }
-}
+redis_conversions!(User);

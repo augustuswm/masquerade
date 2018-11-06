@@ -9,28 +9,28 @@ use api::error::APIError;
 use api::flag_req::FlagReq;
 use flag::Flag;
 
-pub fn read<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
-    let state = req.state().clone();
-    let flag_req = match FlagReq::from_req(&req) {
-        Ok(res) => res,
-        Err(err) => return Box::new(future::err(err)),
-    };
+// pub fn read<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+//     let state = req.state().clone();
+//     let flag_req = match FlagReq::from_req(&req) {
+//         Ok(res) => res,
+//         Err(err) => return Box::new(future::err(err)),
+//     };
 
-    Box::new(future::ok(()).and_then(move |_| {
-        if let Some(ref key) = flag_req.key {
-            let flag = match state.flags().get(&flag_req.path, key) {
-                Ok(Some(flag)) => Some(flag),
-                _ => None,
-            }.ok_or(APIError::FailedToFind)?;
+//     Box::new(future::ok(()).and_then(move |_| {
+//         if let Some(ref key) = flag_req.key {
+//             let flag = match state.flags().get(&flag_req.path, key) {
+//                 Ok(Some(flag)) => Some(flag),
+//                 _ => None,
+//             }.ok_or(APIError::FailedToFind)?;
 
-            Ok(serde_json::to_string(&flag)
-                .or(Err(APIError::FailedToSerialize))
-                .into())
-        } else {
-            Err(APIError::FailedToParseParams)
-        }
-    }))
-}
+//             Ok(serde_json::to_string(&flag)
+//                 .or(Err(APIError::FailedToSerialize))
+//                 .into())
+//         } else {
+//             Err(APIError::FailedToParseParams)
+//         }
+//     }))
+// }
 
 pub fn aread<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
@@ -41,7 +41,7 @@ pub fn aread<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse,
 
     if let Some(ref key) = flag_req.key {
         Box::new(
-            state.aflags().get(&flag_req.path, key)
+            state.flags().get(&flag_req.path, key)
                 .map_err(APIError::FailedToAccessStore)
                 .and_then(|result| {
                     if let Some(flag) = result {
@@ -58,33 +58,33 @@ pub fn aread<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse,
     }
 }
 
-pub fn create<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
-    let state = req.state().clone();
-    let flag_req = match FlagReq::from_req(&req) {
-        Ok(res) => res,
-        Err(err) => return Box::new(future::err(err)),
-    };
+// pub fn create<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+//     let state = req.state().clone();
+//     let flag_req = match FlagReq::from_req(&req) {
+//         Ok(res) => res,
+//         Err(err) => return Box::new(future::err(err)),
+//     };
 
-    req.json()
-        .from_err()
-        .and_then(move |flag: Flag| {
-            // Disallow empty string key
-            if flag.key().len() == 0 {
-                Err(APIError::InvalidFlag)?
-            }
+//     req.json()
+//         .from_err()
+//         .and_then(move |flag: Flag| {
+//             // Disallow empty string key
+//             if flag.key().len() == 0 {
+//                 Err(APIError::InvalidFlag)?
+//             }
 
-            if let Ok(Some(_exists)) = state.flags().get(&flag_req.path, flag.key()) {
-                Err(APIError::AlreadyExists)?
-            }
+//             if let Ok(Some(_exists)) = state.flags().get(&flag_req.path, flag.key()) {
+//                 Err(APIError::AlreadyExists)?
+//             }
 
-            state
-                .flags()
-                .upsert(&flag_req.path, flag.key(), &flag)
-                .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED)))
-                .map_err(|_| APIError::FailedToWriteToStore)
-        })
-        .responder()
-}
+//             state
+//                 .flags()
+//                 .upsert(&flag_req.path, flag.key(), &flag)
+//                 .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED)))
+//                 .map_err(|_| APIError::FailedToWriteToStore)
+//         })
+//         .responder()
+// }
 
 pub fn acreate<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
@@ -101,7 +101,7 @@ pub fn acreate<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRespons
                 Either::A(future::err(APIError::InvalidFlag))
             } else {
                 Either::B(
-                    state.aflags().get(&flag_req.path, flag.key())
+                    state.flags().get(&flag_req.path, flag.key())
                         .map_err(APIError::FailedToAccessStore)
                         .and_then(move |result| {
                             if result.is_some() {
@@ -109,7 +109,7 @@ pub fn acreate<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRespons
                             } else {
                                 Either::B(
                                     state
-                                        .aflags()
+                                        .flags()
                                         .upsert(&flag_req.path, flag.key(), &flag)
                                         .map_err(|_| APIError::FailedToWriteToStore)
                                         .and_then(|_| {
@@ -124,36 +124,36 @@ pub fn acreate<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRespons
     )
 }
 
-pub fn update<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
-    let state = req.state().clone();
-    let flag_req = match FlagReq::from_req(&req) {
-        Ok(res) => res,
-        Err(err) => return Box::new(future::err(err)),
-    };
+// pub fn update<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+//     let state = req.state().clone();
+//     let flag_req = match FlagReq::from_req(&req) {
+//         Ok(res) => res,
+//         Err(err) => return Box::new(future::err(err)),
+//     };
 
-    req.json()
-        .from_err()
-        .and_then(move |new_flag: Flag| {
-            if let Some(ref key) = flag_req.key {
-                let mut flag = match state.flags().get(&flag_req.path, key) {
-                    Ok(Some(flag)) => Some(flag),
-                    _ => None,
-                }.ok_or(APIError::FailedToFind)?;
+//     req.json()
+//         .from_err()
+//         .and_then(move |new_flag: Flag| {
+//             if let Some(ref key) = flag_req.key {
+//                 let mut flag = match state.flags().get(&flag_req.path, key) {
+//                     Ok(Some(flag)) => Some(flag),
+//                     _ => None,
+//                 }.ok_or(APIError::FailedToFind)?;
 
-                flag.set_value(new_flag.value());
-                flag.toggle(new_flag.is_enabled());
+//                 flag.set_value(new_flag.value());
+//                 flag.toggle(new_flag.is_enabled());
 
-                state
-                    .flags()
-                    .upsert(&flag_req.path, key, &flag)
-                    .and_then(|_| Ok(HttpResponse::new(StatusCode::OK)))
-                    .map_err(|_| APIError::FailedToWriteToStore)
-            } else {
-                Err(APIError::FailedToParseParams)
-            }
-        })
-        .responder()
-}
+//                 state
+//                     .flags()
+//                     .upsert(&flag_req.path, key, &flag)
+//                     .and_then(|_| Ok(HttpResponse::new(StatusCode::OK)))
+//                     .map_err(|_| APIError::FailedToWriteToStore)
+//             } else {
+//                 Err(APIError::FailedToParseParams)
+//             }
+//         })
+//         .responder()
+// }
 
 pub fn aupdate<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
@@ -167,7 +167,7 @@ pub fn aupdate<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRespons
         .and_then(move |new_flag: Flag| {
             if let (path, Some(key)) = flag_req.parts() {
                 Either::A(
-                    state.aflags().get(&path, &key)
+                    state.flags().get(&path, &key)
                         .map_err(APIError::FailedToAccessStore)
                         .and_then(move |result| {
                             if let Some(mut flag) = result {
@@ -175,7 +175,7 @@ pub fn aupdate<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRespons
                                 flag.toggle(new_flag.is_enabled());
 
                                 Either::A(
-                                    state.aflags().upsert(&path, &key, &flag)
+                                    state.flags().upsert(&path, &key, &flag)
                                         .map_err(|_| APIError::FailedToWriteToStore)
                                         .and_then(|_| Ok(HttpResponse::new(StatusCode::OK)))
                                 )
@@ -191,32 +191,32 @@ pub fn aupdate<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRespons
     )
 }
 
-pub fn delete<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
-    let state = req.state().clone();
-    let flag_req = match FlagReq::from_req(&req) {
-        Ok(res) => res,
-        Err(err) => return Box::new(future::err(err)),
-    };
+// pub fn delete<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+//     let state = req.state().clone();
+//     let flag_req = match FlagReq::from_req(&req) {
+//         Ok(res) => res,
+//         Err(err) => return Box::new(future::err(err)),
+//     };
 
-    Box::new(future::ok(()).and_then(move |_| {
-        if let Some(ref key) = flag_req.key {
-            let flag = state
-                .flags()
-                .delete(&flag_req.path, key)
-                .map_err(|_| APIError::FailedToWriteToStore)
-                .and_then(|res| match res {
-                    Some(flag) => Ok(flag),
-                    None => Err(APIError::FailedToFind),
-                })?;
+//     Box::new(future::ok(()).and_then(move |_| {
+//         if let Some(ref key) = flag_req.key {
+//             let flag = state
+//                 .flags()
+//                 .delete(&flag_req.path, key)
+//                 .map_err(|_| APIError::FailedToWriteToStore)
+//                 .and_then(|res| match res {
+//                     Some(flag) => Ok(flag),
+//                     None => Err(APIError::FailedToFind),
+//                 })?;
 
-            Ok(serde_json::to_string(&flag)
-                .or(Err(APIError::FailedToSerialize))
-                .into())
-        } else {
-            Err(APIError::FailedToParseParams)
-        }
-    }))
-}
+//             Ok(serde_json::to_string(&flag)
+//                 .or(Err(APIError::FailedToSerialize))
+//                 .into())
+//         } else {
+//             Err(APIError::FailedToParseParams)
+//         }
+//     }))
+// }
 
 pub fn adelete<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
@@ -228,7 +228,7 @@ pub fn adelete<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRespons
     Box::new(
         if let (path, Some(key)) = flag_req.parts() {
             Either::A(
-                state.aflags().delete(&path, &key)
+                state.flags().delete(&path, &key)
                     .map_err(|_| APIError::FailedToWriteToStore)
                     .and_then(|result| {
                         if let Some(flag) = result {
@@ -246,31 +246,31 @@ pub fn adelete<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRespons
     )
 }
 
-pub fn all<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
-    let state = req.state().clone();
-    let flag_req = match FlagReq::from_req(&req) {
-        Ok(res) => res,
-        Err(err) => return Box::new(future::err(err)),
-    };
+// pub fn all<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+//     let state = req.state().clone();
+//     let flag_req = match FlagReq::from_req(&req) {
+//         Ok(res) => res,
+//         Err(err) => return Box::new(future::err(err)),
+//     };
 
-    Box::new(future::ok(()).and_then(move |_| {
+//     Box::new(future::ok(()).and_then(move |_| {
 
-        state
-            .flags()
-            .get_all(&flag_req.path)
-            .and_then(|flags| {
-                let mut flag_list = flags.values().collect::<Vec<&Flag>>();
-                flag_list
-                    .as_mut_slice()
-                    .sort_by(|&a, &b| a.key().cmp(b.key()));
+//         state
+//             .flags()
+//             .get_all(&flag_req.path)
+//             .and_then(|flags| {
+//                 let mut flag_list = flags.values().collect::<Vec<&Flag>>();
+//                 flag_list
+//                     .as_mut_slice()
+//                     .sort_by(|&a, &b| a.key().cmp(b.key()));
 
-                Ok(serde_json::to_string(&flag_list)
-                    .or(Err(APIError::FailedToSerialize))
-                    .into())
-            })
-            .map_err(APIError::FailedToAccessStore)
-    }))
-}
+//                 Ok(serde_json::to_string(&flag_list)
+//                     .or(Err(APIError::FailedToSerialize))
+//                     .into())
+//             })
+//             .map_err(APIError::FailedToAccessStore)
+//     }))
+// }
 
 pub fn aall<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
@@ -279,7 +279,7 @@ pub fn aall<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, 
         Err(err) => return Box::new(future::err(err)),
     };
 
-    Box::new(state.aflags().get_all(&flag_req.path)
+    Box::new(state.flags().get_all(&flag_req.path)
         .map_err(APIError::FailedToAccessStore)
         .and_then(|flags| {
             let mut flag_list = flags.values().collect::<Vec<&Flag>>();

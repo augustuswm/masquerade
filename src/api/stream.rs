@@ -20,7 +20,7 @@ pub fn flag_stream<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRes
     let state = req.state().clone();
     let path = flag_req.path;
 
-    Box::new(state.aflags().update_sub()
+    Box::new(state.flags().update_sub()
         .map(|stream| {
             HttpResponse::Ok()
                 .header(http::header::CACHE_CONTROL, "no-cache")
@@ -39,7 +39,7 @@ pub fn flag_stream<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRes
                         })
                         .and_then(move |_| {
                             state
-                                .aflags()
+                                .flags()
                                 .get_all(&path)
                                 .map_err(APIError::FailedToAccessStore)
                                 .and_then(|flags| {

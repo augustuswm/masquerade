@@ -1,6 +1,7 @@
 use actix_web::{HttpRequest, HttpResponse, Result};
 use actix_web::middleware::{Middleware, Response, Started};
 use base64::decode;
+use futures::{future, Future};
 use http::{header, StatusCode};
 
 use std::str;
@@ -8,7 +9,8 @@ use std::str::FromStr;
 
 use api::error::APIError;
 use api::State;
-use api::state::UserStore;
+use api::state::AsyncUserStore;
+use error::BannerError;
 use user::User;
 
 #[derive(Debug)]
@@ -39,33 +41,50 @@ impl FromStr for AuthReq {
     }
 }
 
-fn find_user(auth: &AuthReq, store: &UserStore) -> Option<User> {
-    store.get(&"users".to_string(), auth.key.as_str()).unwrap_or(None)
+fn find_user(key: &str, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = BannerError> {
+    store.get(&"users".to_string(), key)
 }
 
-fn verifiy_auth(auth: &AuthReq, store: &UserStore) -> Option<User> {
-    find_user(auth, store).and_then(|user| {
-        if user.verify_secret(&auth.secret) {
-            Some(user)
+fn verify_auth(auth: AuthReq, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = BannerError> {
+    find_user(auth.key.as_str(), store).and_then(move |user| {
+        let u = if let Some(user) = user {
+            if user.verify_secret(&auth.secret) {
+                Some(user)
+            } else {
+                None
+            }
         } else {
             None
-        }
+        };
+
+        future::ok(u)
     })
 }
 
-fn handle_auth(auth: &AuthReq, req: &HttpRequest<State>) -> Started {
-    if let Some(user) = verifiy_auth(auth, req.state().users()) {
-        req.extensions_mut().insert(user);
-        Started::Done
-    } else {
-        Started::Response(HttpResponse::new(
-            StatusCode::UNAUTHORIZED
-        ))
-    }
+fn handle_auth(auth: AuthReq, req: &HttpRequest<State>) -> Started {
+    let req = req.clone();
+    
+    Started::Future(
+        Box::new(verify_auth(auth, req.state().users())
+            .map_err(APIError::FailedToAccessStore)
+            .map_err(|e| e.into())
+            .and_then(move |user| {
+                if let Some(user) = user {
+                    req.extensions_mut().insert(user);
+                    future::ok(None)
+                } else {
+                    future::ok(Some(HttpResponse::new(
+                        StatusCode::UNAUTHORIZED
+                    )))
+                }
+            })
+        )
+    )
 }
 
 impl Middleware<State> for BasicAuth {
     fn start(&self, req: &HttpRequest<State>) -> Result<Started> {
+        // let mut req = req.clone();
 
         // If the user was already authenticated by some other means,
         // use the already set user
@@ -79,7 +98,7 @@ impl Middleware<State> for BasicAuth {
                 .and_then(|auth| auth[6..].parse::<AuthReq>().ok());
 
             if let Some(auth_req) = auth_test {
-                Ok(handle_auth(&auth_req, req))
+                Ok(handle_auth(auth_req, req))
             } else {
                 println!("Denied access to due to missing credentials");
 
@@ -106,7 +125,7 @@ impl Middleware<State> for UrlAuth {
             let auth_test = req.query().get("auth").and_then(|auth| auth.parse::<AuthReq>().ok());
 
             if let Some(auth_req) = auth_test {
-                Ok(handle_auth(&auth_req, req))
+                Ok(handle_auth(auth_req, req))
             } else {
                 Ok(Started::Done)
             }

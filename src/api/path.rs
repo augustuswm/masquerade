@@ -1,6 +1,7 @@
 use actix_web::*;
 use actix_web::http::StatusCode;
 use futures::{future, Future};
+use futures::future::Either;
 use serde_json;
 
 use std::str;
@@ -24,29 +25,33 @@ pub fn create<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse
 
     if let Some(u) = ext.get::<User>() {
         let user = u.clone();
-        
-        req.json()
+
+        Box::new(req.json()
             .from_err()
             .and_then(move |f_path_req: FlagPathReq| {
                 let path = PATH_KEY.to_string();
                 let f_path = FlagPath::new(user.uuid.clone(), f_path_req.app, f_path_req.env);
 
-                if let Ok(Some(_exists)) = state.paths().get(&path, f_path.as_ref()) {
-                    Err(APIError::AlreadyExists)?
-                }
-
-                state
-                    .paths()
-                    .upsert(&path, f_path.as_ref(), &f_path)
-                    .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED)))
-                    .map_err(|_| APIError::FailedToWriteToStore)
+                state.paths().get(&path, f_path.as_ref())
+                    .map_err(APIError::FailedToAccessStore)
+                    .and_then(move |result| {
+                        if result.is_some() {
+                            Either::A(future::err(APIError::AlreadyExists))
+                        } else {
+                            Either::B(state.paths()
+                                .upsert(&path, f_path.as_ref(), &f_path)
+                                .map_err(|_| APIError::FailedToWriteToStore)
+                                        .and_then(|_| {
+                                            Ok(HttpResponse::new(StatusCode::CREATED))
+                                        })
+                            )
+                        }
+                    })
             })
-            .responder()
+        )
     } else {
         Box::new(future::err(APIError::Unauthorized))
     }
-
-    
 }
 
 pub fn all<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
