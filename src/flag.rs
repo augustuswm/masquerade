@@ -7,7 +7,7 @@ use serde_json;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use error::BannerError;
+use error::Error;
 
 const PATH_SEP: &'static str = ":";
 
@@ -62,7 +62,7 @@ impl AsRef<str> for FlagPath {
 }
 
 impl FromStr for FlagPath {
-    type Err = BannerError;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.split(PATH_SEP).collect();
@@ -70,7 +70,7 @@ impl FromStr for FlagPath {
         if parts.len() == 3 {
             Ok(FlagPath::new(parts[0], parts[1], parts[2]))
         } else {
-            Err(BannerError::FailedToParsePath)
+            Err(Error::FailedToParsePath)
         }
     }
 }

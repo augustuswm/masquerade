@@ -1,16 +1,16 @@
-use error::BannerError;
+use error::Error;
 use actix_web::{HttpResponse, ResponseError};
 use actix_web::http::StatusCode;
 use actix_web::error::{JsonPayloadError, PayloadError};
 use serde_json::Error as SerdeError;
 
-use std::error::Error;
+use std::error::Error as StdError;
 use std::fmt;
 
 #[derive(Debug)]
 pub enum APIError {
     AlreadyExists,
-    FailedToAccessStore(BannerError),
+    FailedToAccessStore(Error),
     FailedToFind,
     FailedToParseAuth,
     FailedToParseBody,
@@ -38,7 +38,7 @@ impl APIError {
     }
 }
 
-impl Error for APIError {
+impl StdError for APIError {
     fn description(&self) -> &str {
         match self {
             APIError::AlreadyExists => "Flag already exists",

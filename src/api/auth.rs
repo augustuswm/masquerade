@@ -10,7 +10,7 @@ use std::str::FromStr;
 use api::error::APIError;
 use api::State;
 use api::state::AsyncUserStore;
-use error::BannerError;
+use error::Error;
 use user::User;
 
 #[derive(Debug)]
@@ -41,11 +41,11 @@ impl FromStr for AuthReq {
     }
 }
 
-fn find_user(key: &str, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = BannerError> {
+fn find_user(key: &str, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = Error> {
     store.get(&"users".to_string(), key)
 }
 
-fn verify_auth(auth: AuthReq, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = BannerError> {
+fn verify_auth(auth: AuthReq, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = Error> {
     find_user(auth.key.as_str(), store).and_then(move |user| {
         let u = if let Some(user) = user {
             if user.verify_secret(&auth.secret) {

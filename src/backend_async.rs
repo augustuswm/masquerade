@@ -9,7 +9,7 @@ use std::net::SocketAddr;
 
 use std::time::{Duration};
 
-use error::BannerError;
+use error::Error;
 use hash_cache::HashCache;
 
 const FAIL: &'static [u8; 4] = &[102, 97, 105, 108];
@@ -57,11 +57,11 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         prefix.map(|p| p.into()).unwrap_or("banner".into()) + ":features"
     }
 
-    fn conn(&self) -> impl Future<Item = PairedConnection, Error = BannerError> {
+    fn conn(&self) -> impl Future<Item = PairedConnection, Error = Error> {
         paired_connect(&self.address).map_err(|err| err.into())
     }
 
-    fn stream_conn(&self) -> impl Future<Item = PubsubStream, Error = BannerError> {
+    fn stream_conn(&self) -> impl Future<Item = PubsubStream, Error = Error> {
         let topic = self.topic.clone();
 
         pubsub_connect(&self.address)
@@ -77,7 +77,7 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         [self.key.as_str(), ":", path.as_ref(), "/", key].concat()
     }
 
-    pub fn notify(&self, _path: &P) -> impl Future<Item = (), Error = BannerError> {
+    pub fn notify(&self, _path: &P) -> impl Future<Item = (), Error = Error> {
         let topic = self.topic.clone();
 
         self.conn().and_then(|conn| {
@@ -87,7 +87,7 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         })
     }
 
-    pub fn get(&self, path: &P, key: &str) -> impl Future<Item = Option<T>, Error = BannerError> {
+    pub fn get(&self, path: &P, key: &str) -> impl Future<Item = Option<T>, Error = Error> {
         let key = key.to_string();
         let full_path = self.full_path(path);
         let full_key = self.full_key(&path, &key);
@@ -109,7 +109,7 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         }
     }
 
-    pub fn get_all(&self, path: &P) -> impl Future<Item = HashMap<String, T>, Error = BannerError> {
+    pub fn get_all(&self, path: &P) -> impl Future<Item = HashMap<String, T>, Error = Error> {
         let key = [path.as_ref(), ALL_CACHE].concat();
         let full_path = self.full_path(path);
         let all_cache = self.all_cache.clone();
@@ -127,7 +127,7 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         }
     }
 
-    pub fn delete(&self, path: &P, key: &str) -> impl Future<Item = Option<T>, Error = BannerError> {
+    pub fn delete(&self, path: &P, key: &str) -> impl Future<Item = Option<T>, Error = Error> {
         let key = key.to_string();
         let path = path.clone();
         let full_key = self.full_key(&path, &key);
@@ -151,7 +151,7 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         })
     }
 
-    pub fn upsert(&self, path: &P, key: &str, item: &T) -> impl Future<Item = Option<T>, Error = BannerError> {
+    pub fn upsert(&self, path: &P, key: &str, item: &T) -> impl Future<Item = Option<T>, Error = Error> {
         let key = key.to_string();
         let path = path.clone();
         let full_key = self.full_key(&path, &key);
@@ -164,7 +164,7 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         let ser: RespValue = item.clone().into();
 
         if ser == RespValue::BulkString(FAIL.to_vec()) {
-            return Either::A(future::err(BannerError::FailedToSerializeItem))
+            return Either::A(future::err(Error::FailedToSerializeItem))
         }
 
         Either::B(self.conn().and_then(move |conn| {
@@ -184,9 +184,9 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         }))
     }
 
-    pub fn update_sub(&self) -> impl Future<Item = impl Stream<Item = (), Error = BannerError>, Error = BannerError> {
+    pub fn update_sub(&self) -> impl Future<Item = impl Stream<Item = (), Error = Error>, Error = Error> {
         self.stream_conn().map(|stream| {
-            stream.map(|_| ()).map_err(|_| BannerError::RedisAsyncSubMessageFailure)
+            stream.map(|_| ()).map_err(|_| Error::RedisAsyncSubMessageFailure)
         })
     }
 

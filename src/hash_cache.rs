@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Duration, Instant};
 
-use error::BannerError;
+use error::Error;
 
 #[derive(Clone, Debug)]
 pub struct HashCache<T> {
@@ -19,7 +19,7 @@ impl<T> From<HashMap<String, (T, Instant)>> for HashCache<T> {
     }
 }
 
-pub type CacheResult<T> = Result<T, BannerError>;
+pub type CacheResult<T> = Result<T, Error>;
 
 impl<T> HashCache<T> {
     pub fn new(duration: Duration) -> HashCache<T> {
@@ -32,14 +32,14 @@ impl<T> HashCache<T> {
     pub fn reader(&self) -> CacheResult<RwLockReadGuard<HashMap<String, (T, Instant)>>> {
         self.cache.read().map_err(|_| {
             error!("Failed to acquire read guard for cache failed due to poisoning");
-            BannerError::CachePoisonedError
+            Error::CachePoisonedError
         })
     }
 
     pub fn writer(&self) -> CacheResult<RwLockWriteGuard<HashMap<String, (T, Instant)>>> {
         self.cache.write().map_err(|_| {
             error!("Failed to acquire write guard for cache failed due to poisoning");
-            BannerError::CachePoisonedError
+            Error::CachePoisonedError
         })
     }
 

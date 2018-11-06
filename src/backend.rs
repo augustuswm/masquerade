@@ -7,7 +7,7 @@
 // use std::sync::{Arc, RwLock};
 // use std::time::{Duration, Instant};
 
-// use error::BannerError;
+// use error::Error;
 // use hash_cache::HashCache;
 
 // const FAIL: &'static [u8; 4] = &[102, 97, 105, 108];
@@ -24,7 +24,7 @@
 //     _key: ::std::marker::PhantomData<P>,
 // }
 
-// pub type RedisStoreResult<T> = Result<T, BannerError>;
+// pub type RedisStoreResult<T> = Result<T, Error>;
 
 // impl<P, T> RedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRedisValue + ToRedisArgs {
 //     pub fn open<S, U>(
@@ -50,7 +50,7 @@
 //         U: Into<String>,
 //     {
 //         let client =
-//             Client::open(url.into().as_ref()).map_err(|_| BannerError::InvalidRedisConfig)?;
+//             Client::open(url.into().as_ref()).map_err(|_| Error::InvalidRedisConfig)?;
 
 //         Ok(RedisStore::open_with_client(client, prefix, timeout))
 //     }
@@ -87,7 +87,7 @@
 //         // Get a single connection to group requests on
 //         self.client
 //             .get_connection()
-//             .map_err(BannerError::RedisFailure)
+//             .map_err(Error::RedisFailure)
 //     }
 
 //     fn full_path(&self, path: &P) -> String {
@@ -114,9 +114,9 @@
 
 //         if item_ser[0].as_slice() != FAIL {
 //             let res: RedisResult<u8> = conn.hset(self.full_path(path), key.to_string(), item_ser);
-//             res.map(|_| ()).map_err(BannerError::RedisFailure)
+//             res.map(|_| ()).map_err(Error::RedisFailure)
 //         } else {
-//             Err(BannerError::FailedToSerializeItem)
+//             Err(Error::FailedToSerializeItem)
 //         }
 //     }
 
@@ -127,7 +127,7 @@
 //         conn: &Connection,
 //     ) -> RedisStoreResult<()> {
 //         let res: RedisResult<u8> = conn.hdel(self.full_path(path), key.to_string());
-//         res.map(|_| ()).map_err(BannerError::RedisFailure)
+//         res.map(|_| ()).map_err(Error::RedisFailure)
 //     }
 
 //     fn start<S: FromRedisValue>(
@@ -136,12 +136,12 @@
 //         conn: &Connection,
 //     ) -> RedisStoreResult<()> {
 //         let res: RedisResult<S> = cmd("WATCH").arg(self.full_path(path)).query(conn);
-//         res.map(|_| ()).map_err(BannerError::RedisFailure)
+//         res.map(|_| ()).map_err(Error::RedisFailure)
 //     }
 
 //     fn cleanup<S: FromRedisValue>(&self, conn: &Connection) -> RedisStoreResult<()> {
 //         let res: RedisResult<S> = cmd("UNWATCH").query(conn);
-//         res.map(|_| ()).map_err(BannerError::RedisFailure)
+//         res.map(|_| ()).map_err(Error::RedisFailure)
 //     }
 
 //     pub fn mark_updated(&self, time: Instant) -> bool {
@@ -150,7 +150,7 @@
 
 //     pub fn notify(&self, _path: &P) -> usize {
 //         self.conn().and_then(|conn| {
-//             conn.publish("masquerade", 1).map_err(|err| BannerError::RedisFailure(err))
+//             conn.publish("masquerade", 1).map_err(|err| Error::RedisFailure(err))
 //         }).unwrap_or(0)
 
 //         // let conn = self.conn().unwrap();
@@ -190,7 +190,7 @@
 //         let key = [path.as_ref(), ALL_CACHE].concat();
 //         self.all_cache
 //             .get(key.as_str())
-//             .and_then(|map| map.ok_or(BannerError::AllCacheMissing))
+//             .and_then(|map| map.ok_or(Error::AllCacheMissing))
 //             .or_else(|_| {
 //                 self.conn()?
 //                     .hgetall(self.full_path(path))
@@ -198,7 +198,7 @@
 //                         let _ = self.all_cache.insert(key.as_str(), &map);
 //                         map
 //                     })
-//                     .map_err(BannerError::RedisFailure)
+//                     .map_err(Error::RedisFailure)
 //             })
 //     }
 
@@ -248,10 +248,10 @@
 //     }
 
 //     pub fn updated_at(&self) -> RedisStoreResult<Instant> {
-//         self.updated_at.read().map(|val| *val).map_err(|_| BannerError::UpdatedAtPoisoned)
+//         self.updated_at.read().map(|val| *val).map_err(|_| Error::UpdatedAtPoisoned)
 //     }
 
-//     pub fn update_sub(&self) -> impl Future<Item = impl Stream<Item = (), Error = BannerError>, Error = BannerError> {
+//     pub fn update_sub(&self) -> impl Future<Item = impl Stream<Item = (), Error = Error>, Error = Error> {
 //         let topic = "masquerade".to_string();
 //         let addr = "127.0.0.1:6379".to_string().parse().unwrap();
 
@@ -263,12 +263,12 @@
 //                     ()
 //                 }).map_err(|err| {
 //                     error!("Stream message error {:?}", err);
-//                     BannerError::RedisAsyncSubMessageFailure
+//                     Error::RedisAsyncSubMessageFailure
 //                 })
 //             })
 //             .map_err(|err| {
 //                 error!("Topic connection error {:?}", err);
-//                 BannerError::RedisAsyncFailure(err)
+//                 Error::RedisAsyncFailure(err)
 //             })
 //     }
 // }
