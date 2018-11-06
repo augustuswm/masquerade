@@ -1,7 +1,7 @@
 use redis_async;
 use redis_async::error::Error as RedisAsyncError;
 use redis_async::resp::{FromResp, RespValue};
-use redis::{ErrorKind, FromRedisValue, RedisResult, ToRedisArgs, Value as RedisValue};
+// use redis::{ErrorKind, FromRedisValue, RedisResult, ToRedisArgs, Value as RedisValue};
 use serde_json;
 
 use std::str::FromStr;

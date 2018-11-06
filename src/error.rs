@@ -1,4 +1,4 @@
-use redis::RedisError;
+// use redis::RedisError;
 use redis_async::error::Error as RedisAsyncError;
 use serde_json::Error as SerdeError;
 
@@ -9,7 +9,7 @@ use std::fmt;
 pub enum BannerError {
     CachePoisonedError,
     FailedToParsePath,
-    RedisFailure(RedisError),
+    // RedisFailure(RedisError),
     RedisAsyncFailure(RedisAsyncError),
     RedisAsyncSubMessageFailure,
 
@@ -19,11 +19,11 @@ pub enum BannerError {
     UpdatedAtPoisoned,
 }
 
-impl From<RedisError> for BannerError {
-    fn from(err: RedisError) -> BannerError {
-        BannerError::RedisFailure(err)
-    }
-}
+// impl From<RedisError> for BannerError {
+//     fn from(err: RedisError) -> BannerError {
+//         BannerError::RedisFailure(err)
+//     }
+// }
 
 impl From<RedisAsyncError> for BannerError {
     fn from(err: RedisAsyncError) -> BannerError {
@@ -42,7 +42,7 @@ impl Error for BannerError {
         match self {
             BannerError::CachePoisonedError => "Failed to access cache due to poisoning",
             BannerError::FailedToParsePath => "Unable to parse into path",
-            BannerError::RedisFailure(err) => err.description(),
+            // BannerError::RedisFailure(err) => err.description(),
             BannerError::RedisAsyncFailure(err) => err.description(),
             BannerError::RedisAsyncSubMessageFailure => "Async Redis message failed",
             BannerError::InvalidRedisConfig => "Can not create RedisStore from invalid config",

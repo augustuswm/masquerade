@@ -3,7 +3,7 @@ use tokio::executor::spawn;
 
 use std::sync::{Arc, Once, ONCE_INIT};
 
-mod admin;
+// mod admin;
 mod app;
 mod auth;
 mod error;

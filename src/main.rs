@@ -9,7 +9,7 @@ extern crate futures;
 extern crate http;
 #[macro_use]
 extern crate log;
-extern crate redis;
+// extern crate redis;
 #[macro_use]
 extern crate redis_async;
 extern crate ring;
@@ -86,7 +86,7 @@ fn sync() {
 }
 
 fn main() {
-    std::env::set_var("RUST_LOG", "info");
+    env::set_var("RUST_LOG", "info");
     env_logger::init();
 
     sync()
