@@ -2,6 +2,7 @@ import axios from "axios";
 import debounce from "lodash.debounce";
 
 import * as actions from "./actions";
+import { get, set } from "./auth";
 
 function t() {
   return Math.floor(Date.now() / 1000);
@@ -28,6 +29,14 @@ function auth(getState) {
   };
 }
 
+function token(getState) {
+  let { token } = getState();
+
+  return {
+    Authorization: 'Token ' + token
+  };
+}
+
 export function addFlag(key) {
   return function(dispatch, getState) {
     let { baseUrl, app, env } = getState();
@@ -36,7 +45,7 @@ export function addFlag(key) {
 
     dispatch({ type: actions.ADD_FLAG, payload: flag });
 
-    return axios.post(url, flag, { headers: auth(getState) }).catch(err => {
+    return axios.post(url, flag, { headers: token(getState) }).catch(err => {
       dispatch({ type: actions.DELETE_FLAG, payload: flag.key });
       // this.props.onError(`Failed to create flag ${flag.key}`);
     });
@@ -51,7 +60,7 @@ export function deleteFlag(key) {
 
     dispatch({ type: DELETE_FLAG, payload: key });
 
-    return axios.delete(url, { headers: auth(getState) }).catch(err => {
+    return axios.delete(url, { headers: token(getState) }).catch(err => {
       if (flag.length > 0) {
         dispatch({ type: actions.ADD_FLAG, payload: flag[0] });
       }
@@ -72,7 +81,7 @@ export function loadApps() {
       let { baseUrl, key, secret } = getState();
       let url = `${baseUrl}/paths/`;
 
-      axios.get(url, { headers: auth(getState) }).then(function(resp) {
+      axios.get(url, { headers: token(getState) }).then(function(resp) {
           let apps = resp.data;
 
           if (apps.length === 0) {
@@ -99,7 +108,7 @@ export function loadFlagsFor(app, env) {
       let { baseUrl } = getState();
       let url = `${baseUrl}/${app}/${env}/flags/`;
 
-      axios.get(url, { headers: auth(getState) })
+      axios.get(url, { headers: token(getState) })
         .then(function(resp) {
           dispatch(loadFlags(resp.data));
         });
@@ -147,7 +156,7 @@ export function updateFlag(key, enabled) {
 
       dispatch({ type: actions.UPDATE_FLAG, payload: f });
 
-      axios.post(url, f, { headers: auth(getState) })
+      axios.post(url, f, { headers: token(getState) })
         .catch(err => {
           f.enabled = !f.enabled;
           dispatch({ type: actions.UPDATE_FLAG, payload: f });
@@ -156,22 +165,40 @@ export function updateFlag(key, enabled) {
   };
 }
 
+function authenticate() {
+  return debounce(
+    function(dispatch, getState) {
+      let { baseUrl, key, secret } = getState();
+      let url = `${baseUrl}/authenticate/`;
+
+      axios.post(url, {}, { headers: auth(getState) }).then(function(resp) {
+          let token = resp.data;
+          set(token);
+          dispatch({ type: actions.UPDATE_TOKEN, payload: token });
+          loadApps()(dispatch, getState)
+        }).catch(function(err) {
+          dispatch({ type: actions.UNLOAD_DATA, payload: undefined });
+        });
+    }, 250);
+}
+
 export function updateKey(key) {
   return function(dispatch, getState) {
     dispatch({ type: actions.UPDATE_KEY, payload: key });
-    loadApps()(dispatch, getState);
+    authenticate()(dispatch, getState);
   }
 }
 
 export function updateSecret(secret) {
   return function(dispatch, getState) {
     dispatch({ type: actions.UPDATE_SECRET, payload: secret });
-    loadApps()(dispatch, getState);
+    authenticate()(dispatch, getState);
   }
 }
 
 export function logout() {
   return function(dispatch, getState) {
+    set('');
     dispatch({ type: actions.UNLOAD_DATA, payload: undefined });
     dispatch({ type: actions.LOGOUT, payload: undefined });
   }
@@ -200,7 +227,7 @@ export function addApp(app, env) {
 
     dispatch(toggleAppCreate(false));
 
-    axios.post(url, a, { headers: auth(getState) })
+    axios.post(url, a, { headers: token(getState) })
       .catch(err => {})
       .then(() => loadApps()(dispatch, getState));
   };

@@ -19,22 +19,42 @@ pub fn api(state: State) -> App<State> {
     App::with_state(state)
         .prefix("/api/v1")
         .middleware(Logger::default())
-        .middleware(auth::UrlAuth)
-        .middleware(auth::BasicAuth)
-        .resource("/{app}/{env}/flag/", |r| {
-            r.method(Method::POST).a(flag::acreate)
+        .resource("/authenticate/", |r| {
+            r.middleware(auth::BasicAuth);
+            r.middleware(auth::RequireUser);
+            r.method(Method::POST).a(auth::authenticate)
         })
-        .resource("/{app}/{env}/flag/{key}/", |r| {
-            r.method(Method::GET).a(flag::aread);
-            r.method(Method::POST).a(flag::aupdate);
-            r.method(Method::DELETE).a(flag::adelete)
+        .resource("/path/", |r| {
+            r.middleware(auth::JWTAuth);
+            r.middleware(auth::RequireUser);
+            r.method(Method::POST).a(path::create)
         })
-        .resource("/{app}/{env}/flags/", |r| {
-            r.method(Method::GET).a(flag::aall)
+        .resource("/paths/", |r| {
+            r.middleware(auth::JWTAuth);
+            r.middleware(auth::RequireUser);
+            r.method(Method::GET).a(path::all)
         })
-        .resource("/path/", |r| r.method(Method::POST).a(path::create))
-        .resource("/paths/", |r| r.method(Method::GET).a(path::all))
-        .resource("/stream/{app}/{env}/", |r| r.method(Method::GET).a(stream::flag_stream))
+        .resource("/stream/{app}/{env}/", |r| {
+            r.middleware(auth::JWTAuth);
+            r.middleware(auth::RequireUser);
+            r.method(Method::GET).a(stream::flag_stream)
+        })
+        .scope("/{app}/{env}", |scope| {
+            scope
+                .middleware(auth::JWTAuth)
+                .middleware(auth::RequireUser)
+                .resource("/flag/", |r| {
+                    r.method(Method::POST).a(flag::create)
+                })
+                .resource("/flag/{key}/", |r| {
+                    r.method(Method::GET).a(flag::read);
+                    r.method(Method::POST).a(flag::update);
+                    r.method(Method::DELETE).a(flag::delete)
+                })
+                .resource("/flags/", |r| {
+                    r.method(Method::GET).a(flag::all)
+                })
+        })
 }
 
 pub fn frontend(state: State) -> App<State> {

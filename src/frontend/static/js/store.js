@@ -1,8 +1,10 @@
-import * as actions from "./actions";
-import * as creators from "./creators";
 import { createStore, applyMiddleware, compose } from "redux";
 import thunk from 'redux-thunk'
 import { connect } from "react-redux";
+
+import * as actions from "./actions";
+import * as creators from "./creators";
+import { get, set } from "./auth";
 
 let loadedPath = window.location.pathname.split('/', 3);
 let loadedApp = loadedPath[1];
@@ -17,6 +19,7 @@ let initialState = {
   refresh: 1000,
   apiKey: "",
   apiSecret: "",
+  token: get() || "",
   pathMenuOpen: false,
   filterText: "",
   appCreateModalOpen: false
@@ -104,6 +107,14 @@ function reducer(state = initialState, action) {
         {},
         state,
         { apiSecret: action.payload }
+      );
+    }
+
+    case actions.UPDATE_TOKEN: {
+      return Object.assign(
+        {},
+        state,
+        { token: action.payload }
       );
     }
 

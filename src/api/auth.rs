@@ -3,9 +3,12 @@ use actix_web::middleware::{Middleware, Response, Started};
 use base64::decode;
 use futures::{future, Future};
 use http::{header, StatusCode};
+use jsonwebtoken::{decode as jwt_decode, encode as jwt_encode, Header, Validation};
 
+use std::env;
 use std::str;
 use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use api::error::APIError;
 use api::State;
@@ -13,15 +16,32 @@ use api::state::AsyncUserStore;
 use error::Error;
 use user::User;
 
+static APP_NAME: &'static str = "masquerade";
+
 #[derive(Debug)]
 pub struct BasicAuth;
 
 #[derive(Debug)]
 pub struct UrlAuth;
 
+#[derive(Debug)]
+pub struct JWTAuth;
+
+#[derive(Debug)]
+pub struct RequireUser;
+
 pub struct AuthReq {
     key: String,
     secret: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Claims {
+    iss: String,
+    iat: u64,
+    exp: u64,
+    nbf: u64,
+    cid: String,
 }
 
 impl FromStr for AuthReq {
@@ -39,6 +59,31 @@ impl FromStr for AuthReq {
             secret: parts[1].to_string(),
         })
     }
+}
+
+pub fn authenticate<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+    let ext = req.extensions();
+
+    Box::new(future::result(ext.get::<User>().ok_or(APIError::Unauthorized).and_then(|user| {
+        SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| APIError::ConfigFailure).and_then(|time| {
+            let now = time.as_secs();
+            let allowed_for = 24 * 60 * 60;
+
+            let claims = Claims {
+                iss: APP_NAME.to_string(),
+                iat: now,
+                exp: now + allowed_for,
+                nbf: now,
+                cid: user.key.clone()
+            };
+
+            env::var("JWT_SECRET")
+                .map_err(|_| APIError::ConfigFailure)
+                .and_then(|secret| {
+                    Ok(jwt_encode(&Header::default(), &claims, secret.as_ref())?.into())
+                })
+        })
+    })))
 }
 
 fn find_user(key: &str, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = Error> {
@@ -84,7 +129,6 @@ fn handle_auth(auth: AuthReq, req: &HttpRequest<State>) -> Started {
 
 impl Middleware<State> for BasicAuth {
     fn start(&self, req: &HttpRequest<State>) -> Result<Started> {
-        // let mut req = req.clone();
 
         // If the user was already authenticated by some other means,
         // use the already set user
@@ -100,11 +144,7 @@ impl Middleware<State> for BasicAuth {
             if let Some(auth_req) = auth_test {
                 Ok(handle_auth(auth_req, req))
             } else {
-                println!("Denied access to due to missing credentials");
-
-                Ok(Started::Response(HttpResponse::new(
-                    StatusCode::UNAUTHORIZED
-                )))
+                Ok(Started::Done)
             }
         }
     }
@@ -129,6 +169,70 @@ impl Middleware<State> for UrlAuth {
             } else {
                 Ok(Started::Done)
             }
+        }
+    }
+
+    fn response(&self, _: &HttpRequest<State>, resp: HttpResponse) -> Result<Response> {
+        Ok(Response::Done(resp))
+    }
+}
+
+impl Middleware<State> for JWTAuth {
+    fn start(&self, req: &HttpRequest<State>) -> Result<Started> {
+        
+        // If the user was already authenticated by some other means,
+        // use the already set user
+        if req.extensions().get::<User>().is_some() {
+            Ok(Started::Done)
+        } else {
+            let mut validation = Validation::default();
+            validation.iss = Some(APP_NAME.to_string());
+
+            let jwt = req
+                .headers()
+                .get(header::AUTHORIZATION)
+                .and_then(|auth| auth.to_str().ok())
+                .and_then(|auth| {
+                    env::var("JWT_SECRET").ok().and_then(|secret| {
+                        jwt_decode::<Claims>(&auth[6..], secret.as_ref(), &validation).ok()
+                    })
+                });
+
+            if let Some(token) = jwt {
+                let req = req.clone();
+
+                Ok(Started::Future(Box::new(
+                    find_user(&token.claims.cid, req.state().users())
+                        .map_err(APIError::FailedToAccessStore)
+                        .map_err(|e| e.into())
+                        .and_then(move |user| {
+                        if let Some(user) = user {
+                            req.extensions_mut().insert(user);
+                            future::ok(None)
+                        } else {
+                            future::ok(Some(HttpResponse::new(
+                                StatusCode::UNAUTHORIZED
+                            )))
+                        }
+                    })
+                )))
+            } else {
+                Ok(Started::Done)
+            }
+        }
+    }
+
+    fn response(&self, _: &HttpRequest<State>, resp: HttpResponse) -> Result<Response> {
+        Ok(Response::Done(resp))
+    }
+}
+
+impl Middleware<State> for RequireUser {
+    fn start(&self, req: &HttpRequest<State>) -> Result<Started> {
+        if req.extensions().get::<User>().is_some() {
+            Ok(Started::Done)
+        } else {
+            Ok(Started::Response(HttpResponse::new(StatusCode::UNAUTHORIZED)))
         }
     }
 

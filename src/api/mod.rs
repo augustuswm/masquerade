@@ -19,7 +19,6 @@ static SYNC_OBJ: Once = ONCE_INIT;
 
 pub fn init_listener(a_flag_store: &state::AsyncFlagStore) {
   SYNC_OBJ.call_once(|| {
-    println!("wire listener");
     spawn(a_flag_store.updater());
   });
 }

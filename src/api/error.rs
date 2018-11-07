@@ -1,15 +1,19 @@
-use error::Error;
 use actix_web::{HttpResponse, ResponseError};
 use actix_web::http::StatusCode;
 use actix_web::error::{JsonPayloadError, PayloadError};
+use futures::{future, Future};
+use jsonwebtoken::errors::Error as JWTError;
 use serde_json::Error as SerdeError;
 
 use std::error::Error as StdError;
 use std::fmt;
 
+use error::Error;
+
 #[derive(Debug)]
 pub enum APIError {
     AlreadyExists,
+    ConfigFailure,
     FailedToAccessStore(Error),
     FailedToFind,
     FailedToParseAuth,
@@ -17,6 +21,7 @@ pub enum APIError {
     FailedToParseParams,
     FailedToSerialize,
     FailedToWriteToStore,
+    JWTError(JWTError),
     InvalidFlag,
     Unauthorized,
 }
@@ -25,6 +30,7 @@ impl APIError {
     pub fn status(&self) -> StatusCode {
         match self {
             &APIError::AlreadyExists => StatusCode::CONFLICT,
+            &APIError::ConfigFailure => StatusCode::INTERNAL_SERVER_ERROR,
             &APIError::FailedToAccessStore(_) => StatusCode::INTERNAL_SERVER_ERROR,
             &APIError::FailedToFind => StatusCode::NOT_FOUND,
             &APIError::FailedToParseAuth => StatusCode::BAD_REQUEST,
@@ -32,6 +38,7 @@ impl APIError {
             &APIError::FailedToParseParams => StatusCode::BAD_REQUEST,
             &APIError::FailedToSerialize => StatusCode::INTERNAL_SERVER_ERROR,
             &APIError::FailedToWriteToStore => StatusCode::INTERNAL_SERVER_ERROR,
+            &APIError::JWTError(_) => StatusCode::UNAUTHORIZED,
             &APIError::InvalidFlag => StatusCode::BAD_REQUEST,
             &APIError::Unauthorized => StatusCode::UNAUTHORIZED,
         }
@@ -42,6 +49,7 @@ impl StdError for APIError {
     fn description(&self) -> &str {
         match self {
             APIError::AlreadyExists => "Flag already exists",
+            APIError::ConfigFailure => "Server configuration failure",
             APIError::FailedToAccessStore(err) => err.description(),
             APIError::FailedToFind => "Failed to find flag",
             APIError::FailedToParseAuth => "Failed to parse auth payload",
@@ -49,6 +57,7 @@ impl StdError for APIError {
             APIError::FailedToParseParams => "Failed to parse request parameters",
             APIError::FailedToSerialize => "Failed to serialize item",
             APIError::FailedToWriteToStore => "Failed to persist to storage",
+            APIError::JWTError(err) => err.description(),
             APIError::InvalidFlag => "Provided item is invalid",
             APIError::Unauthorized => "Unauthorized",
         }
@@ -82,5 +91,17 @@ impl From<PayloadError> for APIError {
 impl From<JsonPayloadError> for APIError {
     fn from(_: JsonPayloadError) -> APIError {
         APIError::FailedToParseBody
+    }
+}
+
+impl From<JWTError> for APIError {
+    fn from(err: JWTError) -> APIError {
+        APIError::JWTError(err)
+    }
+}
+
+impl Into<Box<Future<Item = HttpResponse, Error = APIError>>> for APIError {
+    fn into(self) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+        Box::new(future::err(self))
     }
 }

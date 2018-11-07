@@ -9,6 +9,7 @@ export const UNLOAD_DATA = "UNLOAD_DATA";
 
 export const UPDATE_KEY = "UPDATE_KEY";
 export const UPDATE_SECRET = "UPDATE_SECRET";
+export const UPDATE_TOKEN = "UPDATE_TOKEN";
 export const LOGOUT = "LOGOUT";
 
 export const TOGGLE_MENU = "TOGGLE_MENU";
