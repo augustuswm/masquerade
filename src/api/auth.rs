@@ -22,9 +22,6 @@ static APP_NAME: &'static str = "masquerade";
 pub struct BasicAuth;
 
 #[derive(Debug)]
-pub struct UrlAuth;
-
-#[derive(Debug)]
 pub struct JWTAuth;
 
 #[derive(Debug)]
@@ -154,29 +151,6 @@ impl Middleware<State> for BasicAuth {
     }
 }
 
-impl Middleware<State> for UrlAuth {
-    fn start(&self, req: &HttpRequest<State>) -> Result<Started> {
-        
-        // If the user was already authenticated by some other means,
-        // use the already set user
-        if req.extensions().get::<User>().is_some() {
-            Ok(Started::Done)
-        } else {
-            let auth_test = req.query().get("auth").and_then(|auth| auth.parse::<AuthReq>().ok());
-
-            if let Some(auth_req) = auth_test {
-                Ok(handle_auth(auth_req, req))
-            } else {
-                Ok(Started::Done)
-            }
-        }
-    }
-
-    fn response(&self, _: &HttpRequest<State>, resp: HttpResponse) -> Result<Response> {
-        Ok(Response::Done(resp))
-    }
-}
-
 impl Middleware<State> for JWTAuth {
     fn start(&self, req: &HttpRequest<State>) -> Result<Started> {
         
@@ -208,12 +182,9 @@ impl Middleware<State> for JWTAuth {
                         .and_then(move |user| {
                         if let Some(user) = user {
                             req.extensions_mut().insert(user);
-                            future::ok(None)
-                        } else {
-                            future::ok(Some(HttpResponse::new(
-                                StatusCode::UNAUTHORIZED
-                            )))
                         }
+
+                        future::ok(None)
                     })
                 )))
             } else {

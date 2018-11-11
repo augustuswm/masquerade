@@ -10,7 +10,6 @@ extern crate http;
 extern crate jsonwebtoken;
 #[macro_use]
 extern crate log;
-// extern crate redis;
 #[macro_use]
 extern crate redis_async;
 extern crate ring;

@@ -1,7 +1,6 @@
 use redis_async;
 use redis_async::error::Error as RedisAsyncError;
 use redis_async::resp::{FromResp, RespValue};
-// use redis::{ErrorKind, FromRedisValue, RedisResult, ToRedisArgs, Value as RedisValue};
 use serde_json;
 
 use std::str::FromStr;
@@ -79,13 +78,11 @@ impl FromStr for FlagPath {
 pub struct Flag {
     key: String,
     value: FlagValue,
-    #[cfg_attr(feature = "mongo-backend", serde(with = "bson::compat::u2f"))] version: u64,
+    version: u64,
     enabled: bool,
     #[serde(default = "current_time")]
-    #[cfg_attr(feature = "mongo-backend", serde(with = "bson::compat::u2f"))]
     created: u64,
     #[serde(default = "current_time")]
-    #[cfg_attr(feature = "mongo-backend", serde(with = "bson::compat::u2f"))]
     updated: u64,
 }
 
