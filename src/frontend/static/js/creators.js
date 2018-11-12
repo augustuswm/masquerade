@@ -84,14 +84,13 @@ export function loadApps() {
       axios.get(url, { headers: token(getState) }).then(function(resp) {
           let apps = resp.data;
 
-          if (apps.length === 0) {
-            throw "No apps available";
-          }
-
           sortApps(apps);
 
           dispatch({ type: actions.LOAD_APPS, payload: apps });
-          selectApp(apps[0].app, apps[0].env)(dispatch, getState);
+
+          if (apps.length > 0) {
+            selectApp(apps[0].app, apps[0].env)(dispatch, getState);
+          }
         }).catch(function(err) {
           dispatch({ type: actions.UNLOAD_DATA, payload: undefined });
         });

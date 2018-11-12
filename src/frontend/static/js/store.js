@@ -130,7 +130,7 @@ function reducer(state = initialState, action) {
       return Object.assign(
         {},
         state,
-        { apiKey: "", apiSecret:"" }
+        { apiKey: "", apiSecret:"", token: "" }
       );
     }    
 
@@ -175,7 +175,8 @@ const mapStateToProps = state => {
     apiSecret: state.apiSecret,
     pathMenuOpen: state.pathMenuOpen,
     filterText: state.filterText,
-    appCreateModalOpen: state.appCreateModalOpen
+    appCreateModalOpen: state.appCreateModalOpen,
+    loggedIn: !!state.token
   };
 };
 

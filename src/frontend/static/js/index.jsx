@@ -124,7 +124,7 @@ class App extends React.Component {
   }
 
   render() {
-    let { classes, apps, app, env } = this.props;
+    let { classes, apps, app, env, loggedIn } = this.props;
     let hasSelected = app && env;
     let contentClass = classes.content + (hasSelected ? '' : ' ' + classes.mainPrompt);
 
@@ -132,7 +132,7 @@ class App extends React.Component {
       <Fragment>
         <Login />
         <CreateApp />
-        <div className={apps.length > 0 ? classes.root : classes.hidden}>
+        <div className={loggedIn ? classes.root : classes.hidden}>
           <Header />
           <div className={classes.body}>
             <PathMenu

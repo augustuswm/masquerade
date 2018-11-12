@@ -22,8 +22,10 @@ extern crate uuid;
 
 use futures::Future;
 use tokio::runtime::current_thread::Runtime;
+use uuid::Uuid;
 
 use std::env;
+use std::net::{SocketAddr, ToSocketAddrs};
 
 mod api;
 #[macro_use]
@@ -33,61 +35,65 @@ mod flag;
 mod hash_cache;
 mod user;
 
+const DEFAULT_USER: &'static str = "dev";
+const DEFAULT_PASS: &'static str = "dev";
 
 fn run<F>(to_run: F) -> F::Item where F: Future {
     Runtime::new().unwrap().block_on(to_run).map_err(|_| ()).unwrap()
 }
 
-fn sync() {
-    let a_apps = backend_async::AsyncRedisStore::open(
-        "127.0.0.1:6379".parse().unwrap(),
-        "masquerade",
-        Some("banner"),
+fn launch(host: &str, port: &str, prefix: &str) -> Result<(), &'static str> {
+    let addresses: Vec<SocketAddr> = (host.to_string() + ":" + port).to_socket_addrs().map_err(|_| "Failed to parse address for Redis")?.collect();
+
+    if addresses.len() == 0 {
+        return Err("Failed to resolve Redis host");
+    }
+
+    let address = addresses[0];
+
+    let flags = backend_async::AsyncRedisStore::open(
+        address,
+        prefix,
+        Some(prefix),
         None,
     );
 
-    let a_flags = backend_async::AsyncRedisStore::open(
-        "127.0.0.1:6379".parse().unwrap(),
-        "masquerade",
-        Some("banner"),
+    let apps = backend_async::AsyncRedisStore::open(
+        address,
+        prefix,
+        Some(prefix),
         None,
     );
 
-    let a_users = backend_async::AsyncRedisStore::open(
-        "127.0.0.1:6379".parse().unwrap(),
-        "masquerade",
-        Some("banner"),
+    let users = backend_async::AsyncRedisStore::open(
+        address,
+        prefix,
+        Some(prefix),
         None,
     );
 
-    let flag = flag::Flag::new("f1", flag::FlagValue::Bool(true), 1, true);
-
-    let u = user::User::new(
-        "user-id".to_string(),
-        "dev".to_string(),
-        "dev".to_string(),
+    let user = user::User::new(
+        Uuid::new_v4().to_string(),
+        DEFAULT_USER.to_string(),
+        DEFAULT_PASS.to_string(),
         true,
     );
 
-    let a = (u.uuid.clone() + ":test_app:test_env")
-        .parse::<flag::FlagPath>()
-        .unwrap();
+    let _ = run(users.upsert(&"users".to_string(), "dev", &user));
 
-    let _ = run(a_apps.upsert(
-        &"paths".to_string(),
-        &(u.uuid.clone() + ":test_app:test_env"),
-        &a,
-    ));
+    api::boot(flags, apps, users);
 
-    let _ = run(a_flags.upsert(&a, "f1", &flag));
-    let _ = run(a_users.upsert(&"users".to_string(), "dev", &u));
-
-    api::boot(a_flags, a_apps, a_users);
+    Ok(())
 }
 
-fn main() {
+fn main() -> Result<(), &'static str> {
     env::set_var("RUST_LOG", "info");
     env_logger::init();
 
-    sync()
+    launch(
+        &env::var("REDIS_HOST").unwrap_or("127.0.0.1".to_string()),
+        &env::var("REDIS_PORT").unwrap_or("6379".to_string()),
+        &env::var("REDIS_PREFIX").unwrap_or("masquerade".to_string()),
+
+    )
 }

@@ -75,11 +75,10 @@ class Login extends React.Component {
   }
 
   render() {
-    let { classes, apiKey, apiSecret, apps } = this.props;
-    let hasApps = apps.length > 0;
-    let portalClasses = classes.login + (!hasApps ? ' ' + classes.loginFull : '');
-    let pannelClasses = classes.loginPanel + (hasApps ? ' ' + classes.loginPanelHidden : '');
-    let fieldClasses = classes.loginField + (hasApps ? ' ' + classes.loginFieldHidden : '');
+    let { classes, apiKey, apiSecret, apps, loggedIn } = this.props;
+    let portalClasses = classes.login + (!loggedIn ? ' ' + classes.loginFull : '');
+    let pannelClasses = classes.loginPanel + (loggedIn ? ' ' + classes.loginPanelHidden : '');
+    let fieldClasses = classes.loginField + (loggedIn ? ' ' + classes.loginFieldHidden : '');
 
     return (
       <div className={portalClasses}>
