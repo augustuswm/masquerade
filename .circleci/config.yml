@@ -66,11 +66,11 @@ jobs:
           command: dockerize -wait tcp://localhost:6379 -timeout 1m
       - run:
           name: Test
-          command: cargo test --features redis-backend
+          command: cargo test
       - run:
           name: Build
           command: |
-            cargo build --release --features redis-backend
+            cargo build --release
             echo $CIRCLE_SHA1 > .circle-sha
       - run:
           name: Install Node
