@@ -26,6 +26,7 @@ use uuid::Uuid;
 
 use std::env;
 use std::net::{SocketAddr, ToSocketAddrs};
+use std::time::{Duration};
 
 mod api;
 #[macro_use]
@@ -55,31 +56,37 @@ fn launch(host: &str, port: &str, prefix: &str) -> Result<(), &'static str> {
         address,
         prefix,
         Some(prefix),
-        None,
+        Some(Duration::new(60, 0)),
     );
 
     let apps = backend_async::AsyncRedisStore::open(
         address,
         prefix,
         Some(prefix),
-        None,
+        Some(Duration::new(60, 0)),
     );
 
     let users = backend_async::AsyncRedisStore::open(
         address,
         prefix,
         Some(prefix),
-        None,
+        Some(Duration::new(60, 0)),
     );
 
-    let user = user::User::new(
-        Uuid::new_v4().to_string(),
-        DEFAULT_USER.to_string(),
-        DEFAULT_PASS.to_string(),
-        true,
-    );
+    match run(users.get(&"users".to_string(), "dev")) {
+        None => {
+            let user = user::User::new(
+                &user::get_salt(),
+                Uuid::new_v4().to_string(),
+                DEFAULT_USER.to_string(),
+                DEFAULT_PASS.to_string(),
+                true,
+            );
 
-    let _ = run(users.upsert(&"users".to_string(), "dev", &user));
+            let _ = run(users.upsert(&"users".to_string(), "dev", &user));
+        }
+        _ => ()
+    };
 
     api::boot(flags, apps, users);
 
@@ -87,7 +94,7 @@ fn launch(host: &str, port: &str, prefix: &str) -> Result<(), &'static str> {
 }
 
 fn main() -> Result<(), &'static str> {
-    env::set_var("RUST_LOG", "info");
+    env::set_var("RUST_LOG", "debug");
     env_logger::init();
 
     launch(

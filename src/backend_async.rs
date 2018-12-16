@@ -77,11 +77,12 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         [self.key.as_str(), ":", path.as_ref(), "/", key].concat()
     }
 
-    pub fn notify(&self, _path: &P) -> impl Future<Item = (), Error = Error> {
+    pub fn notify(&self, path: &P) -> impl Future<Item = (), Error = Error> {
+        let key = [path.as_ref(), ALL_CACHE].concat();
         let topic = self.topic.clone();
 
         self.conn().and_then(|conn| {
-            conn.send::<i32>(resp_array!["PUBLISH", topic, "update"]).map(|_| {
+            conn.send::<i32>(resp_array!["PUBLISH", topic, key]).map(|_| {
                 ()
             }).map_err(|err| err.into())
         })
@@ -94,8 +95,13 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         let cache = self.cache.clone();
 
         match cache.get(full_key.as_str()) {
-            Ok(Some(item)) => Either::A(future::ok(Some(item))),
-            _ => Either::B(self.conn().and_then(move |conn| {
+            Ok(Some(item)) => {
+                debug!("Cache hit: {}", full_key);
+                Either::A(future::ok(Some(item)))
+            },
+            _ => {
+                debug!("Cache miss: {}", full_key);
+                Either::B(self.conn().and_then(move |conn| {
                   conn.send(resp_array!["HGET", full_path, &key])
                     .map(move |resp| {
                         if let Some(ref val) = resp {
@@ -106,6 +112,7 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
                     })
                     .map_err(|err| err.into())
                 }))
+            }
         }
     }
 
@@ -115,8 +122,13 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         let all_cache = self.all_cache.clone();
 
         match all_cache.get(key.as_str()) {
-            Ok(Some(map)) => Either::A(future::ok(map)),
-            _ => Either::B(self.conn().and_then(move |conn| {
+            Ok(Some(map)) => {
+                debug!("Cache hit: {}", key);
+                Either::A(future::ok(map))
+            }
+            _ => {
+                debug!("Cache miss: {}", key);
+                Either::B(self.conn().and_then(move |conn| {
                   conn.send::<HashMap<String, T>>(resp_array!["HGETALL", full_path])
                     .map(move |resp| {
                         let _ = all_cache.insert(key.as_str(), &resp);
@@ -124,6 +136,7 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
                     })
                     .map_err(|err| err.into())
                 }))
+            }
         }
     }
 
@@ -196,9 +209,10 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         self.stream_conn()
             .map_err(|_| ())
             .and_then(move |stream| {
-                stream.for_each(move |_| {
+                stream.for_each(move |msg| {
+                    info!("Update for {:?}", msg);
                     let _ = all_cache.clear();
-                    info!("Received update. Clearing all_cache");
+                    info!("Cleared cache for {:?}", msg);
                     future::ok(())
                 }).map_err(|_| ())
             })

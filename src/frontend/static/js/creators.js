@@ -92,7 +92,11 @@ export function loadApps() {
             selectApp(apps[0].app, apps[0].env)(dispatch, getState);
           }
         }).catch(function(err) {
-          dispatch({ type: actions.UNLOAD_DATA, payload: undefined });
+          if (err.response.status === 401) {
+            logout()(dispatch, getState);
+          } else {
+            dispatch({ type: actions.UNLOAD_DATA, payload: undefined });
+          }
         });
     }, 250);
 }

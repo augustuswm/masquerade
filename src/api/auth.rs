@@ -13,8 +13,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use api::error::APIError;
 use api::State;
 use api::state::AsyncUserStore;
+use api::state::Salt;
 use error::Error;
-use user::User;
+use user::{get_salt, User};
 
 static APP_NAME: &'static str = "masquerade";
 
@@ -87,10 +88,11 @@ fn find_user(key: &str, store: &AsyncUserStore) -> impl Future<Item = Option<Use
     store.get(&"users".to_string(), key)
 }
 
-fn verify_auth(auth: AuthReq, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = Error> {
+fn verify_auth(auth: AuthReq, store: &AsyncUserStore, salt: &Salt) -> impl Future<Item = Option<User>, Error = Error> {
+    let salt = salt.clone();
     find_user(auth.key.as_str(), store).and_then(move |user| {
         let u = if let Some(user) = user {
-            if user.verify_secret(&auth.secret) {
+            if user.verify_secret(&salt, &auth.secret) {
                 Some(user)
             } else {
                 None
@@ -107,7 +109,7 @@ fn handle_auth(auth: AuthReq, req: &HttpRequest<State>) -> Started {
     let req = req.clone();
     
     Started::Future(
-        Box::new(verify_auth(auth, req.state().users())
+        Box::new(verify_auth(auth, req.state().users(), req.state().salt())
             .map_err(APIError::FailedToAccessStore)
             .map_err(|e| e.into())
             .and_then(move |user| {

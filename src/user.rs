@@ -9,11 +9,6 @@ use serde_json;
 static DIGEST_ALG: &'static digest::Algorithm = &digest::SHA256;
 const CREDENTIAL_LEN: usize = digest::SHA256_OUTPUT_LEN;
 const ITERATIONS: u32 = 5;
-const SALT: [u8; 16] = [
-    // This value was generated from a secure PRNG.
-    0xd6, 0x26, 0x98, 0xda, 0xf4, 0xdc, 0x50, 0x52,
-    0x24, 0xf2, 0x27, 0xd1, 0xfe, 0x39, 0x01, 0x8a
-];
 
 pub type Credential = [u8; CREDENTIAL_LEN];
 
@@ -26,8 +21,8 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(uuid: String, key: String, secret: String, is_admin: bool) -> User {
-        let hash = User::generate_hash(key.as_str(), secret.as_str());
+    pub fn new(salt: &[u8; 16], uuid: String, key: String, secret: String, is_admin: bool) -> User {
+        let hash = User::generate_hash(salt, key.as_str(), secret.as_str());
 
         User {
             uuid: uuid,
@@ -43,8 +38,8 @@ impl User {
 
     // Example implementation from ring library: https://briansmith.org/rustdoc/ring/pbkdf2/
 
-    pub fn generate_hash(key: &str, secret: &str) -> Credential {
-        let salt = User::salt(key);
+    pub fn generate_hash(salt: &[u8; 16], key: &str, secret: &str) -> Credential {
+        let salt = User::salt(salt, key);
         let mut to_store: Credential = [0u8; CREDENTIAL_LEN];
 
         pbkdf2::derive(
@@ -58,8 +53,8 @@ impl User {
         to_store
     }
 
-    pub fn verify_secret(&self, secret: &str) -> bool {
-        let salt = User::salt(&self.key);
+    pub fn verify_secret(&self, salt: &[u8; 16], secret: &str) -> bool {
+        let salt = User::salt(salt, &self.key);
         pbkdf2::verify(DIGEST_ALG, ITERATIONS, &salt, secret.as_bytes(), &self.hash).is_ok()
     }
 
@@ -69,12 +64,18 @@ impl User {
     // crack the same user's password across databases in the unfortunate
     // but common case that the user has used the same password for
     // multiple systems.
-    fn salt(key: &str) -> Vec<u8> {
-        let mut salt = Vec::with_capacity(SALT.len() + key.as_bytes().len());
-        salt.extend(SALT.as_ref());
-        salt.extend(key.as_bytes());
-        salt
+    fn salt(salt: &[u8; 16], key: &str) -> Vec<u8> {
+        let mut full_salt = Vec::with_capacity(salt.len() + key.as_bytes().len());
+        full_salt.extend(salt.as_ref());
+        full_salt.extend(key.as_bytes());
+        full_salt
     }
+}
+
+pub fn get_salt() -> [u8; 16] {
+    let mut salt: [u8; 16] = [0; 16];
+    salt.copy_from_slice(::std::env::var("SALT").unwrap().as_bytes());
+    salt
 }
 
 redis_conversions!(User);
