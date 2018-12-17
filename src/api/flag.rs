@@ -4,10 +4,10 @@ use futures::{future, Future};
 use futures::future::Either;
 use serde_json;
 
-use api::State;
-use api::error::APIError;
-use api::flag_req::FlagReq;
-use flag::Flag;
+use crate::api::State;
+use crate::api::error::APIError;
+use crate::api::flag_req::FlagReq;
+use crate::flag::Flag;
 
 pub fn read<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();

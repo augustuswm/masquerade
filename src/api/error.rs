@@ -8,7 +8,7 @@ use serde_json::Error as SerdeError;
 use std::error::Error as StdError;
 use std::fmt;
 
-use error::Error;
+use crate::error::Error;
 
 #[derive(Debug)]
 pub enum APIError {

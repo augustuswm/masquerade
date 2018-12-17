@@ -1,8 +1,10 @@
+use log::error;
+
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Duration, Instant};
 
-use error::Error;
+use crate::error::Error;
 
 #[derive(Clone, Debug)]
 pub struct HashCache<T> {

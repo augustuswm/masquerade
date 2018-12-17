@@ -1,11 +1,15 @@
 use actix_web::*;
+use log::debug;
 use tokio::executor::spawn;
 
 use std::sync::{Arc, Once, ONCE_INIT};
 
+use crate::api::config::APIConfig;
+
 // mod admin;
 mod app;
 mod auth;
+pub mod config;
 mod error;
 mod flag;
 mod flag_req;
@@ -23,9 +27,16 @@ pub fn init_listener(a_flag_store: &state::AsyncFlagStore) {
   });
 }
 
-pub fn boot(flags: state::AsyncFlagStore, paths: state::AsyncFlagPathStore, users: state::AsyncUserStore)
+pub fn boot(
+  flags: state::AsyncFlagStore,
+  paths: state::AsyncFlagPathStore,
+  users: state::AsyncUserStore,
+  config: APIConfig
+)
 {
-    let state = Arc::new(state::AppState::new(flags, paths, users));
+    debug!("Application startup");
+
+    let state = Arc::new(state::AppState::new(flags, paths, users, config));
 
     server::new(move || {
       init_listener(state.flags());

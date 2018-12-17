@@ -1,5 +1,7 @@
 use futures::{future, Future, Stream};
 use futures::future::Either;
+use log::{debug, info};
+use redis_async::resp_array;
 use redis_async::client::paired::{paired_connect, PairedConnection};
 use redis_async::client::pubsub::{pubsub_connect, PubsubStream};
 use redis_async::resp::{FromResp, RespValue};
@@ -9,8 +11,8 @@ use std::net::SocketAddr;
 
 use std::time::{Duration};
 
-use error::Error;
-use hash_cache::HashCache;
+use crate::error::Error;
+use crate::hash_cache::HashCache;
 
 const FAIL: &'static [u8; 4] = &[102, 97, 105, 108];
 const ALL_CACHE: &'static str = ":all_flags$";
@@ -260,7 +262,7 @@ mod tests {
     use tokio::runtime::current_thread::Runtime;
     use tokio::timer::{Interval, Timeout};
 
-    use flag::*;
+    use crate::flag::*;
 
     use super::*;
 

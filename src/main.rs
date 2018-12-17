@@ -1,40 +1,24 @@
 // #![allow(dead_code)]
 
-extern crate actix;
-extern crate actix_web;
-extern crate base64;
-extern crate bytes;
-extern crate env_logger;
-extern crate futures;
-extern crate http;
-extern crate jsonwebtoken;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate redis_async;
-extern crate ring;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-extern crate tokio;
-extern crate uuid;
-
 use futures::Future;
+use structopt::StructOpt;
 use tokio::runtime::current_thread::Runtime;
 use uuid::Uuid;
 
 use std::env;
-use std::net::{SocketAddr, ToSocketAddrs};
 use std::time::{Duration};
 
 mod api;
 #[macro_use]
 mod backend_async;
+mod cli;
+mod config;
 mod error;
 mod flag;
 mod hash_cache;
 mod user;
+
+use crate::config::Config;
 
 const DEFAULT_USER: &'static str = "dev";
 const DEFAULT_PASS: &'static str = "dev";
@@ -43,40 +27,39 @@ fn run<F>(to_run: F) -> F::Item where F: Future {
     Runtime::new().unwrap().block_on(to_run).map_err(|_| ()).unwrap()
 }
 
-fn launch(host: &str, port: &str, prefix: &str) -> Result<(), &'static str> {
-    let addresses: Vec<SocketAddr> = (host.to_string() + ":" + port).to_socket_addrs().map_err(|_| "Failed to parse address for Redis")?.collect();
+fn get_config() -> Result<Config, String> {
+    Config::new().map_err(|err| format!("Invalid config: {:?}", err))
+}
 
-    if addresses.len() == 0 {
-        return Err("Failed to resolve Redis host");
-    }
+fn launch(config: Config) -> Result<(), String> {
+    env::set_var("RUST_LOG", config.log_level().to_string());
+    env_logger::init();
 
-    let address = addresses[0];
 
     let flags = backend_async::AsyncRedisStore::open(
-        address,
-        prefix,
-        Some(prefix),
-        Some(Duration::new(60, 0)),
+        config.db(),
+        config.prefix(),
+        Some(config.prefix()),
+        Some(Duration::new(config.cache_duration().into(), 0)),
     );
 
     let apps = backend_async::AsyncRedisStore::open(
-        address,
-        prefix,
-        Some(prefix),
-        Some(Duration::new(60, 0)),
+        config.db(),
+        config.prefix(),
+        Some(config.prefix()),
+        Some(Duration::new(config.cache_duration().into(), 0)),
     );
 
     let users = backend_async::AsyncRedisStore::open(
-        address,
-        prefix,
-        Some(prefix),
-        Some(Duration::new(60, 0)),
+        config.db(),
+        config.prefix(),
+        Some(config.prefix()),
+        Some(Duration::new(config.cache_duration().into(), 0)),
     );
 
     match run(users.get(&"users".to_string(), "dev")) {
         None => {
             let user = user::User::new(
-                &user::get_salt(),
                 Uuid::new_v4().to_string(),
                 DEFAULT_USER.to_string(),
                 DEFAULT_PASS.to_string(),
@@ -88,19 +71,24 @@ fn launch(host: &str, port: &str, prefix: &str) -> Result<(), &'static str> {
         _ => ()
     };
 
-    api::boot(flags, apps, users);
+    api::boot(flags, apps, users, config.api());
 
     Ok(())
 }
 
-fn main() -> Result<(), &'static str> {
-    env::set_var("RUST_LOG", "debug");
-    env_logger::init();
+fn main() -> Result<(), String> {
+    let opt = cli::Options::from_args();
 
-    launch(
-        &env::var("REDIS_HOST").unwrap_or("127.0.0.1".to_string()),
-        &env::var("REDIS_PORT").unwrap_or("6379".to_string()),
-        &env::var("REDIS_PREFIX").unwrap_or("masquerade".to_string()),
-
-    )
+    match opt.cmd {
+        Some(cli::Command::GenerateSecret) => {
+            println!("{}", config::generate_secret());
+            Ok(())
+        }
+        Some(cli::Command::TestConfig) => {
+            let _test = get_config()?;
+            println!("Config OK");
+            Ok(())
+        }
+        None => launch(get_config()?)
+    }
 }

@@ -4,18 +4,18 @@ use base64::decode;
 use futures::{future, Future};
 use http::{header, StatusCode};
 use jsonwebtoken::{decode as jwt_decode, encode as jwt_encode, Header, Validation};
+use serde_derive::{Deserialize, Serialize};
 
 use std::env;
 use std::str;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use api::error::APIError;
-use api::State;
-use api::state::AsyncUserStore;
-use api::state::Salt;
-use error::Error;
-use user::{get_salt, User};
+use crate::api::error::APIError;
+use crate::api::State;
+use crate::api::state::AsyncUserStore;
+use crate::error::Error;
+use crate::user::User;
 
 static APP_NAME: &'static str = "masquerade";
 
@@ -88,11 +88,10 @@ fn find_user(key: &str, store: &AsyncUserStore) -> impl Future<Item = Option<Use
     store.get(&"users".to_string(), key)
 }
 
-fn verify_auth(auth: AuthReq, store: &AsyncUserStore, salt: &Salt) -> impl Future<Item = Option<User>, Error = Error> {
-    let salt = salt.clone();
+fn verify_auth(auth: AuthReq, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = Error> {
     find_user(auth.key.as_str(), store).and_then(move |user| {
         let u = if let Some(user) = user {
-            if user.verify_secret(&salt, &auth.secret) {
+            if user.verify_secret(&auth.secret) {
                 Some(user)
             } else {
                 None
@@ -109,7 +108,7 @@ fn handle_auth(auth: AuthReq, req: &HttpRequest<State>) -> Started {
     let req = req.clone();
     
     Started::Future(
-        Box::new(verify_auth(auth, req.state().users(), req.state().salt())
+        Box::new(verify_auth(auth, req.state().users())
             .map_err(APIError::FailedToAccessStore)
             .map_err(|e| e.into())
             .and_then(move |user| {
@@ -169,9 +168,8 @@ impl Middleware<State> for JWTAuth {
                 .get(header::AUTHORIZATION)
                 .and_then(|auth| auth.to_str().ok())
                 .and_then(|auth| {
-                    env::var("JWT_SECRET").ok().and_then(|secret| {
-                        jwt_decode::<Claims>(&auth[6..], secret.as_ref(), &validation).ok()
-                    })
+                    let secret = req.state().jwt_secret();
+                    jwt_decode::<Claims>(&auth[6..], secret.as_ref(), &validation).ok()
                 });
 
             if let Some(token) = jwt {

@@ -1,12 +1,13 @@
 use redis_async;
 use redis_async::error::Error as RedisAsyncError;
 use redis_async::resp::{FromResp, RespValue};
+use serde_derive::{Deserialize, Serialize};
 use serde_json;
 
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use error::Error;
+use crate::error::Error;
 
 const PATH_SEP: &'static str = ":";
 

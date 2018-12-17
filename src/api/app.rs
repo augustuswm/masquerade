@@ -5,11 +5,11 @@ use actix_web::middleware::Logger;
 
 use std::path::Path;
 
-use api::auth;
-use api::flag;
-use api::path;
-use api::State;
-use api::stream;
+use crate::api::auth;
+use crate::api::flag;
+use crate::api::path;
+use crate::api::State;
+use crate::api::stream;
 
 fn index<'r>(_req: &'r HttpRequest<State>) -> Result<NamedFile> {
     Ok(NamedFile::open(Path::new("www/index.html"))?)

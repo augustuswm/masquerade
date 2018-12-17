@@ -3,3 +3,11 @@
 **/*.rs.bk
 /src/frontend/static/dist/
 /node_modules/
+
+# Ignore potential config secrets
+config.ini
+config.hjson
+config.json
+config.toml
+config.yml
+config.yaml

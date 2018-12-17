@@ -1,3 +1,4 @@
+use config::ConfigError;
 use redis_async::error::Error as RedisAsyncError;
 use serde_json::Error as SerdeError;
 
@@ -7,6 +8,7 @@ use std::fmt;
 #[derive(Debug)]
 pub enum Error {
     CachePoisonedError,
+    InvalidConfig(ConfigError),
     FailedToParsePath,
     RedisAsyncFailure(RedisAsyncError),
     RedisAsyncSubMessageFailure,
@@ -32,6 +34,7 @@ impl StdError for Error {
     fn description(&self) -> &str {
         match self {
             Error::CachePoisonedError => "Failed to access cache due to poisoning",
+            Error::InvalidConfig(err) => err.description(),
             Error::FailedToParsePath => "Unable to parse into path",
             Error::RedisAsyncFailure(err) => err.description(),
             Error::RedisAsyncSubMessageFailure => "Async Redis message failed",
