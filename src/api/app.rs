@@ -5,11 +5,13 @@ use actix_web::middleware::Logger;
 
 use std::path::Path;
 
+use crate::api::admin;
 use crate::api::auth;
 use crate::api::flag;
 use crate::api::path;
 use crate::api::State;
 use crate::api::stream;
+use crate::api::user;
 
 fn index<'r>(_req: &'r HttpRequest<State>) -> Result<NamedFile> {
     Ok(NamedFile::open(Path::new("www/index.html"))?)
@@ -38,6 +40,20 @@ pub fn api(state: State) -> App<State> {
             r.middleware(auth::JWTAuth);
             r.middleware(auth::RequireUser);
             r.method(Method::GET).a(stream::flag_stream)
+        })
+        .scope("/users", |scope| {
+            scope
+                .middleware(auth::JWTAuth)
+                .middleware(admin::Admin)
+                .resource("/{key}/", |r| {
+                    r.method(Method::GET).a(user::read);
+                    r.method(Method::POST).a(user::update);
+                    r.method(Method::DELETE).a(user::delete);
+                })
+                .resource("/", |r| {
+                    r.method(Method::GET).a(user::all);
+                    r.method(Method::POST).a(user::create);
+                })
         })
         .scope("/{app}/{env}", |scope| {
             scope

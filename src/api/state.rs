@@ -5,7 +5,7 @@ use crate::user::User;
 
 pub type AsyncFlagStore = AsyncRedisStore<FlagPath, Flag>;
 pub type AsyncFlagPathStore = AsyncRedisStore<String, FlagPath>;
-pub type AsyncUserStore = AsyncRedisStore<String, User>;
+pub type AsyncUserStore = AsyncRedisStore<&'static str, User>;
 
 pub struct AppState {
     flag_store: AsyncFlagStore,

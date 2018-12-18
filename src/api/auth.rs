@@ -6,7 +6,6 @@ use http::{header, StatusCode};
 use jsonwebtoken::{decode as jwt_decode, encode as jwt_encode, Header, Validation};
 use serde_derive::{Deserialize, Serialize};
 
-use std::env;
 use std::str;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -15,7 +14,7 @@ use crate::api::error::APIError;
 use crate::api::State;
 use crate::api::state::AsyncUserStore;
 use crate::error::Error;
-use crate::user::User;
+use crate::user::{PATH, User};
 
 static APP_NAME: &'static str = "masquerade";
 
@@ -75,17 +74,14 @@ pub fn authenticate<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpRe
                 cid: user.key.clone()
             };
 
-            env::var("JWT_SECRET")
-                .map_err(|_| APIError::ConfigFailure)
-                .and_then(|secret| {
-                    Ok(jwt_encode(&Header::default(), &claims, secret.as_ref())?.into())
-                })
+            let secret = req.state().jwt_secret();
+            Ok(jwt_encode(&Header::default(), &claims, secret.as_ref())?.into())
         })
     })))
 }
 
 fn find_user(key: &str, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = Error> {
-    store.get(&"users".to_string(), key)
+    store.get(&PATH, key)
 }
 
 fn verify_auth(auth: AuthReq, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = Error> {

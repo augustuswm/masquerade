@@ -13,6 +13,8 @@ const ITERATIONS: u32 = 5;
 
 pub type Credential = [u8; CREDENTIAL_LEN];
 
+pub const PATH: &'static str = "users";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub uuid: String,
@@ -23,21 +25,26 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(uuid: String, key: String, secret: String, is_admin: bool) -> User {
-        let salt = User::salt().unwrap();
-        let hash = User::generate_hash(salt.as_bytes(), secret.as_str());
+    pub fn new(uuid: String, key: String, secret: String, is_admin: bool) -> Result<User, ()> {
+        User::salt().map(|salt| {
+            let hash = User::generate_hash(salt.as_bytes(), secret.as_str());
 
-        User {
-            uuid: uuid,
-            key: key,
-            salt: salt,
-            hash: hash,
-            is_admin: is_admin,
-        }
+            User {
+                uuid: uuid,
+                key: key,
+                salt: salt,
+                hash: hash,
+                is_admin: is_admin,
+            }
+        })
     }
 
     pub fn is_admin(&self) -> bool {
         self.is_admin
+    }
+
+    pub fn set_admin_status(&mut self, status: bool) {
+        self.is_admin = status;
     }
 
     pub fn generate_hash(salt: &[u8], secret: &str) -> Credential {
@@ -55,7 +62,6 @@ impl User {
     }
 
     pub fn verify_secret(&self, secret: &str) -> bool {
-        // TODO: Combine salt and secret
         pbkdf2::verify(DIGEST_ALG, ITERATIONS, &self.salt.as_bytes(), secret.as_bytes(), &self.hash).is_ok()
     }
 
@@ -64,11 +70,6 @@ impl User {
         SystemRandom::new().fill(&mut dest).map_err(|_| ())?;
 
         Ok(encode(&dest))
-
-        // let mut full_salt = Vec::with_capacity(salt.len() + key.as_bytes().len());
-        // full_salt.extend(salt.as_ref());
-        // full_salt.extend(key.as_bytes());
-        // full_salt
     }
 }
 

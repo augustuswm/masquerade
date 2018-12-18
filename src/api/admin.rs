@@ -2,7 +2,7 @@ use http::StatusCode;
 use actix_web::{HttpRequest, HttpResponse, Result};
 use actix_web::middleware::{Middleware, Response, Started};
 
-use user::User;
+use crate::user::User;
 
 #[derive(Debug)]
 pub struct Admin;

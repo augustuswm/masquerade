@@ -83,6 +83,8 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         let key = [path.as_ref(), ALL_CACHE].concat();
         let topic = self.topic.clone();
 
+        debug!("Notifying: {} {}", topic, key);
+
         self.conn().and_then(|conn| {
             conn.send::<i32>(resp_array!["PUBLISH", topic, key]).map(|_| {
                 ()
@@ -96,12 +98,14 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         let full_key = self.full_key(&path, &key);
         let cache = self.cache.clone();
 
+        debug!("Perform get: {}", full_key);
+
         match cache.get(full_key.as_str()) {
             Ok(Some(item)) => {
                 debug!("Cache hit: {}", full_key);
                 Either::A(future::ok(Some(item)))
             },
-            _ => {
+            Ok(None) => {
                 debug!("Cache miss: {}", full_key);
                 Either::B(self.conn().and_then(move |conn| {
                   conn.send(resp_array!["HGET", full_path, &key])
@@ -114,7 +118,8 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
                     })
                     .map_err(|err| err.into())
                 }))
-            }
+            },
+            Err(err) => Either::A(future::err(err))
         }
     }
 
@@ -122,6 +127,8 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         let key = [path.as_ref(), ALL_CACHE].concat();
         let full_path = self.full_path(path);
         let all_cache = self.all_cache.clone();
+
+        debug!("Perform get all: {}", key);
 
         match all_cache.get(key.as_str()) {
             Ok(Some(map)) => {
@@ -150,6 +157,8 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         let all_cache = self.all_cache.clone();
         let cache = self.cache.clone();
         let notification = self.notify(&path);
+
+        debug!("Perform delete: {}", full_key);
 
         self.conn().and_then(move |conn| {
             conn.send::<Option<T>>(resp_array!["HGET", &full_path, &key])
@@ -181,6 +190,8 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         if ser == RespValue::BulkString(FAIL.to_vec()) {
             return Either::A(future::err(Error::FailedToSerializeItem))
         }
+
+        debug!("Perform upsert: {}", full_key);
 
         Either::B(self.conn().and_then(move |conn| {
             conn.send::<Option<T>>(resp_array!["HGET", &full_path, &key])

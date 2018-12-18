@@ -24,6 +24,7 @@ pub enum APIError {
     JWTError(JWTError),
     InvalidFlag,
     Unauthorized,
+    SystemFailure,
 }
 
 impl APIError {
@@ -41,6 +42,7 @@ impl APIError {
             &APIError::JWTError(_) => StatusCode::UNAUTHORIZED,
             &APIError::InvalidFlag => StatusCode::BAD_REQUEST,
             &APIError::Unauthorized => StatusCode::UNAUTHORIZED,
+            &APIError::SystemFailure => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -60,6 +62,7 @@ impl StdError for APIError {
             APIError::JWTError(err) => err.description(),
             APIError::InvalidFlag => "Provided item is invalid",
             APIError::Unauthorized => "Unauthorized",
+            APIError::SystemFailure => "An unknown system failure occured"
         }
     }
 }

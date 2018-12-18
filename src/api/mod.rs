@@ -6,7 +6,7 @@ use std::sync::{Arc, Once, ONCE_INIT};
 
 use crate::api::config::APIConfig;
 
-// mod admin;
+mod admin;
 mod app;
 mod auth;
 pub mod config;
@@ -16,6 +16,8 @@ mod flag_req;
 mod path;
 mod state;
 mod stream;
+mod user;
+mod user_req;
 
 type State = Arc<state::AppState>;
 
@@ -34,7 +36,7 @@ pub fn boot(
   config: APIConfig
 )
 {
-    debug!("Application startup");
+    debug!("API startup");
 
     let state = Arc::new(state::AppState::new(flags, paths, users, config));
 

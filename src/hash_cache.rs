@@ -57,7 +57,7 @@ impl<T: Clone> HashCache<T> {
 
             match entry {
                 Some(&(ref val, created)) => {
-                    if self.ignore_dur() || created.elapsed() <= self.duration {
+                    if !self.ignore_dur() || created.elapsed() <= self.duration {
                         Some(val.clone())
                     } else {
                         None
@@ -73,7 +73,7 @@ impl<T: Clone> HashCache<T> {
 
         self.reader().map(|reader| {
             for (k, &(ref f, created)) in reader.iter() {
-                if self.ignore_dur() || created.elapsed() <= self.duration {
+                if !self.ignore_dur() || created.elapsed() <= self.duration {
                     res.insert(k.clone(), f.clone());
                 }
             }
