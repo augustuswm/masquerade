@@ -1,6 +1,6 @@
-use actix_web::{HttpResponse, ResponseError};
-use actix_web::http::StatusCode;
 use actix_web::error::{JsonPayloadError, PayloadError};
+use actix_web::http::StatusCode;
+use actix_web::{HttpResponse, ResponseError};
 use futures::{future, Future};
 use jsonwebtoken::errors::Error as JWTError;
 use serde_json::Error as SerdeError;
@@ -62,7 +62,7 @@ impl StdError for APIError {
             APIError::JWTError(err) => err.description(),
             APIError::InvalidFlag => "Provided item is invalid",
             APIError::Unauthorized => "Unauthorized",
-            APIError::SystemFailure => "An unknown system failure occured"
+            APIError::SystemFailure => "An unknown system failure occured",
         }
     }
 }

@@ -1,5 +1,5 @@
-use actix_web::{HttpRequest, HttpResponse, Result};
 use actix_web::middleware::{Middleware, Response, Started};
+use actix_web::{HttpRequest, HttpResponse, Result};
 use base64::decode;
 use futures::{future, Future};
 use http::{header, StatusCode};
@@ -11,10 +11,10 @@ use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::api::error::APIError;
-use crate::api::State;
 use crate::api::state::AsyncUserStore;
+use crate::api::State;
 use crate::error::Error;
-use crate::user::{PATH, User};
+use crate::user::{User, PATH};
 
 static APP_NAME: &'static str = "masquerade";
 
@@ -58,33 +58,45 @@ impl FromStr for AuthReq {
     }
 }
 
-pub fn authenticate<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+pub fn authenticate<'r>(
+    req: &'r HttpRequest<State>,
+) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let ext = req.extensions();
 
-    Box::new(future::result(ext.get::<User>().ok_or(APIError::Unauthorized).and_then(|user| {
-        SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| APIError::ConfigFailure).and_then(|time| {
-            let now = time.as_secs();
-            let allowed_for = 24 * 60 * 60;
+    Box::new(future::result(
+        ext.get::<User>()
+            .ok_or(APIError::Unauthorized)
+            .and_then(|user| {
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map_err(|_| APIError::ConfigFailure)
+                    .and_then(|time| {
+                        let now = time.as_secs();
+                        let allowed_for = 24 * 60 * 60;
 
-            let claims = Claims {
-                iss: APP_NAME.to_string(),
-                iat: now,
-                exp: now + allowed_for,
-                nbf: now,
-                cid: user.key.clone()
-            };
+                        let claims = Claims {
+                            iss: APP_NAME.to_string(),
+                            iat: now,
+                            exp: now + allowed_for,
+                            nbf: now,
+                            cid: user.key.clone(),
+                        };
 
-            let secret = req.state().jwt_secret();
-            Ok(jwt_encode(&Header::default(), &claims, secret.as_ref())?.into())
-        })
-    })))
+                        let secret = req.state().jwt_secret();
+                        Ok(jwt_encode(&Header::default(), &claims, secret.as_ref())?.into())
+                    })
+            }),
+    ))
 }
 
 fn find_user(key: &str, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = Error> {
     store.get(&PATH, key)
 }
 
-fn verify_auth(auth: AuthReq, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = Error> {
+fn verify_auth(
+    auth: AuthReq,
+    store: &AsyncUserStore,
+) -> impl Future<Item = Option<User>, Error = Error> {
     find_user(auth.key.as_str(), store).and_then(move |user| {
         let u = if let Some(user) = user {
             if user.verify_secret(&auth.secret) {
@@ -102,9 +114,9 @@ fn verify_auth(auth: AuthReq, store: &AsyncUserStore) -> impl Future<Item = Opti
 
 fn handle_auth(auth: AuthReq, req: &HttpRequest<State>) -> Started {
     let req = req.clone();
-    
-    Started::Future(
-        Box::new(verify_auth(auth, req.state().users())
+
+    Started::Future(Box::new(
+        verify_auth(auth, req.state().users())
             .map_err(APIError::FailedToAccessStore)
             .map_err(|e| e.into())
             .and_then(move |user| {
@@ -112,18 +124,14 @@ fn handle_auth(auth: AuthReq, req: &HttpRequest<State>) -> Started {
                     req.extensions_mut().insert(user);
                     future::ok(None)
                 } else {
-                    future::ok(Some(HttpResponse::new(
-                        StatusCode::UNAUTHORIZED
-                    )))
+                    future::ok(Some(HttpResponse::new(StatusCode::UNAUTHORIZED)))
                 }
-            })
-        )
-    )
+            }),
+    ))
 }
 
 impl Middleware<State> for BasicAuth {
     fn start(&self, req: &HttpRequest<State>) -> Result<Started> {
-
         // If the user was already authenticated by some other means,
         // use the already set user
         if req.extensions().get::<User>().is_some() {
@@ -150,7 +158,6 @@ impl Middleware<State> for BasicAuth {
 
 impl Middleware<State> for JWTAuth {
     fn start(&self, req: &HttpRequest<State>) -> Result<Started> {
-        
         // If the user was already authenticated by some other means,
         // use the already set user
         if req.extensions().get::<User>().is_some() {
@@ -176,12 +183,12 @@ impl Middleware<State> for JWTAuth {
                         .map_err(APIError::FailedToAccessStore)
                         .map_err(|e| e.into())
                         .and_then(move |user| {
-                        if let Some(user) = user {
-                            req.extensions_mut().insert(user);
-                        }
+                            if let Some(user) = user {
+                                req.extensions_mut().insert(user);
+                            }
 
-                        future::ok(None)
-                    })
+                            future::ok(None)
+                        }),
                 )))
             } else {
                 Ok(Started::Done)
@@ -199,7 +206,9 @@ impl Middleware<State> for RequireUser {
         if req.extensions().get::<User>().is_some() {
             Ok(Started::Done)
         } else {
-            Ok(Started::Response(HttpResponse::new(StatusCode::UNAUTHORIZED)))
+            Ok(Started::Response(HttpResponse::new(
+                StatusCode::UNAUTHORIZED,
+            )))
         }
     }
 

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use std::env;
 use std::fmt::Display;
-use std::time::{Duration};
+use std::time::Duration;
 
 mod api;
 #[macro_use]
@@ -25,8 +25,16 @@ use crate::config::Config;
 const DEFAULT_USER: &'static str = "masquerade";
 const DEFAULT_PASS: &'static str = "facade";
 
-fn run<F, E>(to_run: F) -> F::Item where F: Future<Error = E>, E: Display {
-    Runtime::new().unwrap().block_on(to_run).map_err(|err| format!("{}", err)).unwrap()
+fn run<F, E>(to_run: F) -> F::Item
+where
+    F: Future<Error = E>,
+    E: Display,
+{
+    Runtime::new()
+        .unwrap()
+        .block_on(to_run)
+        .map_err(|err| format!("{}", err))
+        .unwrap()
 }
 
 fn get_config() -> Result<Config, String> {
@@ -73,7 +81,8 @@ fn launch(config: Config) -> Result<(), String> {
                 DEFAULT_USER.to_string(),
                 DEFAULT_PASS.to_string(),
                 true,
-            ).expect("Failed to create the default user. Unable to continue to setup.");
+            )
+            .expect("Failed to create the default user. Unable to continue to setup.");
 
             let _ = run(users.upsert(&user::PATH, &default_user, &user));
 
@@ -104,6 +113,6 @@ fn main() -> Result<(), String> {
             println!("Config OK");
             Ok(())
         }
-        None => launch(get_config()?)
+        None => launch(get_config()?),
     }
 }

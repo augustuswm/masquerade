@@ -1,6 +1,6 @@
-use http::StatusCode;
-use actix_web::{HttpRequest, HttpResponse, Result};
 use actix_web::middleware::{Middleware, Response, Started};
+use actix_web::{HttpRequest, HttpResponse, Result};
+use http::StatusCode;
 
 use crate::user::User;
 
@@ -13,13 +13,11 @@ impl<S> Middleware<S> for Admin {
             if user.is_admin() {
                 Ok(Started::Done)
             } else {
-                Ok(Started::Response(HttpResponse::new(
-                    StatusCode::FORBIDDEN
-                )))
+                Ok(Started::Response(HttpResponse::new(StatusCode::FORBIDDEN)))
             }
         } else {
             Ok(Started::Response(HttpResponse::new(
-                StatusCode::UNAUTHORIZED
+                StatusCode::UNAUTHORIZED,
             )))
         }
     }

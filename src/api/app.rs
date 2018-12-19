@@ -1,7 +1,7 @@
-use actix_web::{fs, App, HttpRequest, Result};
 use actix_web::fs::NamedFile;
 use actix_web::http::Method;
 use actix_web::middleware::Logger;
+use actix_web::{fs, App, HttpRequest, Result};
 
 use std::path::Path;
 
@@ -9,9 +9,9 @@ use crate::api::admin;
 use crate::api::auth;
 use crate::api::flag;
 use crate::api::path;
-use crate::api::State;
 use crate::api::stream;
 use crate::api::user;
+use crate::api::State;
 
 fn index<'r>(_req: &'r HttpRequest<State>) -> Result<NamedFile> {
     Ok(NamedFile::open(Path::new("www/index.html"))?)
@@ -59,17 +59,13 @@ pub fn api(state: State) -> App<State> {
             scope
                 .middleware(auth::JWTAuth)
                 .middleware(auth::RequireUser)
-                .resource("/flag/", |r| {
-                    r.method(Method::POST).a(flag::create)
-                })
+                .resource("/flag/", |r| r.method(Method::POST).a(flag::create))
                 .resource("/flag/{key}/", |r| {
                     r.method(Method::GET).a(flag::read);
                     r.method(Method::POST).a(flag::update);
                     r.method(Method::DELETE).a(flag::delete)
                 })
-                .resource("/flags/", |r| {
-                    r.method(Method::GET).a(flag::all)
-                })
+                .resource("/flags/", |r| r.method(Method::GET).a(flag::all))
         })
 }
 
@@ -80,6 +76,8 @@ pub fn frontend(state: State) -> App<State> {
         .resource("/{app}/{env}/", |r| r.h(index))
         .handler(
             "/",
-            fs::StaticFiles::new("www/").expect("Failed to locate www directory").index_file("index.html"),
+            fs::StaticFiles::new("www/")
+                .expect("Failed to locate www directory")
+                .index_file("index.html"),
         )
 }

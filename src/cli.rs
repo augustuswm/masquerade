@@ -1,10 +1,10 @@
-use structopt::StructOpt;
 use structopt::clap::AppSettings;
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 pub struct Options {
     #[structopt(subcommand)]
-    pub cmd: Option<Command>
+    pub cmd: Option<Command>,
 }
 
 #[derive(Debug, StructOpt)]
@@ -13,5 +13,5 @@ pub enum Command {
     #[structopt(name = "generate-secret", alias = "secret")]
     GenerateSecret,
     #[structopt(name = "test-config", alias = "test")]
-    TestConfig
+    TestConfig,
 }

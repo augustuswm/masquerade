@@ -11,7 +11,7 @@ pub struct AppState {
     flag_store: AsyncFlagStore,
     path_store: AsyncFlagPathStore,
     user_store: AsyncUserStore,
-    config: APIConfig
+    config: APIConfig,
 }
 
 impl AppState {
@@ -19,13 +19,13 @@ impl AppState {
         flag_store: AsyncFlagStore,
         path_store: AsyncFlagPathStore,
         user_store: AsyncUserStore,
-        config: APIConfig) -> AppState
-    {
+        config: APIConfig,
+    ) -> AppState {
         AppState {
             flag_store: flag_store,
             path_store: path_store,
             user_store: user_store,
-            config: config
+            config: config,
         }
     }
 

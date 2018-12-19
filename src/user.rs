@@ -2,8 +2,8 @@ use base64::encode;
 use redis_async;
 use redis_async::error::Error as RedisAsyncError;
 use redis_async::resp::{FromResp, RespValue};
-use ring::{digest, pbkdf2};
 use ring::rand::{SecureRandom, SystemRandom};
+use ring::{digest, pbkdf2};
 use serde_derive::{Deserialize, Serialize};
 use serde_json;
 
@@ -62,7 +62,14 @@ impl User {
     }
 
     pub fn verify_secret(&self, secret: &str) -> bool {
-        pbkdf2::verify(DIGEST_ALG, ITERATIONS, &self.salt.as_bytes(), secret.as_bytes(), &self.hash).is_ok()
+        pbkdf2::verify(
+            DIGEST_ALG,
+            ITERATIONS,
+            &self.salt.as_bytes(),
+            secret.as_bytes(),
+            &self.hash,
+        )
+        .is_ok()
     }
 
     fn salt() -> Result<String, ()> {

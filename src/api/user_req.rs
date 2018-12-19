@@ -1,10 +1,10 @@
-use actix_web::{HttpRequest};
+use actix_web::HttpRequest;
 
 use crate::api::error::APIError;
 use crate::api::State;
 
 pub struct UserReq {
-    pub key: String
+    pub key: String,
 }
 
 impl UserReq {
@@ -13,7 +13,7 @@ impl UserReq {
 
         if let Some(key) = params.get("key") {
             Ok(UserReq {
-                key: key.to_string()
+                key: key.to_string(),
             })
         } else {
             Err(APIError::FailedToParseParams)

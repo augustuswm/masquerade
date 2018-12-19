@@ -1,15 +1,15 @@
-use futures::{future, Future, Stream};
 use futures::future::Either;
+use futures::{future, Future, Stream};
 use log::{debug, info};
-use redis_async::resp_array;
 use redis_async::client::paired::{paired_connect, PairedConnection};
 use redis_async::client::pubsub::{pubsub_connect, PubsubStream};
 use redis_async::resp::{FromResp, RespValue};
+use redis_async::resp_array;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
-use std::time::{Duration};
+use std::time::Duration;
 
 use crate::error::Error;
 use crate::hash_cache::HashCache;
@@ -28,7 +28,11 @@ pub struct AsyncRedisStore<P, T> {
     _key: ::std::marker::PhantomData<P>,
 }
 
-impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromResp + Into<RespValue> {
+impl<P, T> AsyncRedisStore<P, T>
+where
+    P: Clone + AsRef<str>,
+    T: Clone + FromResp + Into<RespValue>,
+{
     pub fn open<S, U>(
         address: SocketAddr,
         topic: S,
@@ -48,7 +52,7 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
             cache: HashCache::new(dur),
             all_cache: HashCache::new(dur),
             timeout: dur,
-            _key: ::std::marker::PhantomData
+            _key: ::std::marker::PhantomData,
         }
     }
 
@@ -86,9 +90,9 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         debug!("Notifying: {} {}", topic, key);
 
         self.conn().and_then(|conn| {
-            conn.send::<i32>(resp_array!["PUBLISH", topic, key]).map(|_| {
-                ()
-            }).map_err(|err| err.into())
+            conn.send::<i32>(resp_array!["PUBLISH", topic, key])
+                .map(|_| ())
+                .map_err(|err| err.into())
         })
     }
 
@@ -104,22 +108,22 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
             Ok(Some(item)) => {
                 debug!("Cache hit: {}", full_key);
                 Either::A(future::ok(Some(item)))
-            },
+            }
             Ok(None) => {
                 debug!("Cache miss: {}", full_key);
                 Either::B(self.conn().and_then(move |conn| {
-                  conn.send(resp_array!["HGET", full_path, &key])
-                    .map(move |resp| {
-                        if let Some(ref val) = resp {
-                            let _ = cache.insert(full_key, val);
-                        };
+                    conn.send(resp_array!["HGET", full_path, &key])
+                        .map(move |resp| {
+                            if let Some(ref val) = resp {
+                                let _ = cache.insert(full_key, val);
+                            };
 
-                        resp
-                    })
-                    .map_err(|err| err.into())
+                            resp
+                        })
+                        .map_err(|err| err.into())
                 }))
-            },
-            Err(err) => Either::A(future::err(err))
+            }
+            Err(err) => Either::A(future::err(err)),
         }
     }
 
@@ -138,12 +142,12 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
             _ => {
                 debug!("Cache miss: {}", key);
                 Either::B(self.conn().and_then(move |conn| {
-                  conn.send::<HashMap<String, T>>(resp_array!["HGETALL", full_path])
-                    .map(move |resp| {
-                        let _ = all_cache.insert(key.as_str(), &resp);
-                        resp
-                    })
-                    .map_err(|err| err.into())
+                    conn.send::<HashMap<String, T>>(resp_array!["HGETALL", full_path])
+                        .map(move |resp| {
+                            let _ = all_cache.insert(key.as_str(), &resp);
+                            resp
+                        })
+                        .map_err(|err| err.into())
                 }))
             }
         }
@@ -175,7 +179,12 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         })
     }
 
-    pub fn upsert(&self, path: &P, key: &str, item: &T) -> impl Future<Item = Option<T>, Error = Error> {
+    pub fn upsert(
+        &self,
+        path: &P,
+        key: &str,
+        item: &T,
+    ) -> impl Future<Item = Option<T>, Error = Error> {
         let key = key.to_string();
         let path = path.clone();
         let full_key = self.full_key(&path, &key);
@@ -188,16 +197,14 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         let ser: RespValue = item.clone().into();
 
         if ser == RespValue::BulkString(FAIL.to_vec()) {
-            return Either::A(future::err(Error::FailedToSerializeItem))
+            return Either::A(future::err(Error::FailedToSerializeItem));
         }
 
         debug!("Perform upsert: {}", full_key);
 
         Either::B(self.conn().and_then(move |conn| {
             conn.send::<Option<T>>(resp_array!["HGET", &full_path, &key])
-                .map_err(|err| {
-                    err.into()
-                })
+                .map_err(|err| err.into())
                 .and_then(move |resp| {
                     conn.send::<i32>(resp_array!["HSET", &full_path, &key, item.clone().into()])
                         .map_err(|err| err.into())
@@ -210,25 +217,29 @@ impl<P, T> AsyncRedisStore<P, T> where P: Clone + AsRef<str>, T: Clone + FromRes
         }))
     }
 
-    pub fn update_sub(&self) -> impl Future<Item = impl Stream<Item = (), Error = Error>, Error = Error> {
+    pub fn update_sub(
+        &self,
+    ) -> impl Future<Item = impl Stream<Item = (), Error = Error>, Error = Error> {
         self.stream_conn().map(|stream| {
-            stream.map(|_| ()).map_err(|_| Error::RedisAsyncSubMessageFailure)
+            stream
+                .map(|_| ())
+                .map_err(|_| Error::RedisAsyncSubMessageFailure)
         })
     }
 
     pub fn updater(&self) -> impl Future<Item = (), Error = ()> {
         let all_cache = self.all_cache.clone();
 
-        self.stream_conn()
-            .map_err(|_| ())
-            .and_then(move |stream| {
-                stream.for_each(move |msg| {
+        self.stream_conn().map_err(|_| ()).and_then(move |stream| {
+            stream
+                .for_each(move |msg| {
                     info!("Update for {:?}", msg);
                     let _ = all_cache.clear();
                     info!("Cleared cache for {:?}", msg);
                     future::ok(())
-                }).map_err(|_| ())
-            })
+                })
+                .map_err(|_| ())
+        })
     }
 }
 
@@ -239,15 +250,23 @@ macro_rules! redis_conversions {
                 match resp {
                     RespValue::BulkString(ref bytes) => {
                         serde_json::from_str(&String::from_utf8_lossy(bytes)).or_else(|_| {
-                            Err(redis_async::error::resp("Cannot convert into a $struct", redis_async::resp::RespValue::BulkString(bytes.to_owned())))
+                            Err(redis_async::error::resp(
+                                "Cannot convert into a $struct",
+                                redis_async::resp::RespValue::BulkString(bytes.to_owned()),
+                            ))
                         })
-                    },
-                    RespValue::SimpleString(ref string) => {
-                        serde_json::from_str(string.as_str()).or_else(|_| {
-                            Err(redis_async::error::resp("Cannot convert into a $struct", resp.to_owned()))
-                        })
-                    },
-                    _ => Err(redis_async::error::resp("Cannot convert into a $struct", resp)),
+                    }
+                    RespValue::SimpleString(ref string) => serde_json::from_str(string.as_str())
+                        .or_else(|_| {
+                            Err(redis_async::error::resp(
+                                "Cannot convert into a $struct",
+                                resp.to_owned(),
+                            ))
+                        }),
+                    _ => Err(redis_async::error::resp(
+                        "Cannot convert into a $struct",
+                        resp,
+                    )),
                 }
             }
         }
@@ -258,18 +277,17 @@ macro_rules! redis_conversions {
 
                 match res {
                     Ok(ser) => RespValue::BulkString(ser.as_bytes().to_vec()),
-                    Err(_) => RespValue::BulkString("fail".as_bytes().to_vec())
+                    Err(_) => RespValue::BulkString("fail".as_bytes().to_vec()),
                 }
-                
             }
         }
-    }
+    };
 }
 
 #[cfg(test)]
 mod tests {
-    use futures::{Future};
     use futures::future::ok;
+    use futures::Future;
     use tokio::runtime::current_thread::Runtime;
     use tokio::timer::{Interval, Timeout};
 
@@ -302,8 +320,15 @@ mod tests {
         store
     }
 
-    fn run<F>(to_run: F) -> F::Item where F: Future {
-        Runtime::new().unwrap().block_on(to_run).map_err(|_| ()).unwrap()
+    fn run<F>(to_run: F) -> F::Item
+    where
+        F: Future,
+    {
+        Runtime::new()
+            .unwrap()
+            .block_on(to_run)
+            .map_err(|_| ())
+            .unwrap()
     }
 
     #[test]
@@ -414,15 +439,14 @@ mod tests {
         let mut runner = Runtime::new().unwrap();
 
         // FIXME: I'm sure there is a better way to test this.
-        // Can not figure it out currently. 
+        // Can not figure it out currently.
 
-        let sub = Timeout::new(data.update_sub()
-            .map_err(|_| ())
-            .and_then(|sub_conn| {
-                sub_conn.take(1).for_each(|v| {
-                    ok(v)
-                }).map_err(|_| ())
-            }), Duration::new(2, 0));
+        let sub = Timeout::new(
+            data.update_sub()
+                .map_err(|_| ())
+                .and_then(|sub_conn| sub_conn.take(1).for_each(|v| ok(v)).map_err(|_| ())),
+            Duration::new(2, 0),
+        );
 
         let notifier = Interval::new_interval(Duration::new(1, 0))
             .map_err(|_| ())

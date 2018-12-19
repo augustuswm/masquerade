@@ -51,7 +51,8 @@ impl FlagPath {
             app.as_ref(),
             PATH_SEP,
             env.as_ref(),
-        ].concat()
+        ]
+        .concat()
     }
 }
 

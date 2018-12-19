@@ -1,4 +1,4 @@
-use actix_web::{HttpRequest};
+use actix_web::HttpRequest;
 
 use crate::api::error::APIError;
 use crate::api::State;
