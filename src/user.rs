@@ -39,12 +39,20 @@ impl User {
         })
     }
 
+    pub fn set_key(&mut self, key: String) {
+        self.key = key;
+    }
+
     pub fn is_admin(&self) -> bool {
         self.is_admin
     }
 
     pub fn set_admin_status(&mut self, status: bool) {
         self.is_admin = status;
+    }
+
+    pub fn update_secret(&mut self, secret: &str) {
+        self.hash = User::generate_hash(self.salt.as_bytes(), secret)
     }
 
     pub fn generate_hash(salt: &[u8], secret: &str) -> Credential {

@@ -43,7 +43,7 @@ pub fn api(state: State) -> App<State> {
         })
         .scope("/users", |scope| {
             scope
-                .middleware(auth::JWTAuth)
+                .middleware(auth::BasicAuth)
                 .middleware(admin::Admin)
                 .resource("/{key}/", |r| {
                     r.method(Method::GET).a(user::read);

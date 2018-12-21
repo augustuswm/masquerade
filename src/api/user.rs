@@ -122,12 +122,20 @@ pub fn update<'r>(
             .map_err(APIError::FailedToAccessStore)
             .and_then(move |result| {
                 if let Some(mut user) = result {
+                    user.set_key(new_user.key);
                     user.set_admin_status(new_user.is_admin);
+
+                    if let Some(secret) = new_user.secret {
+                        if secret.len() != 0 {
+                            user.update_secret(&secret)
+                        }
+                    }
 
                     Either::A(
                         state
                             .users()
-                            .upsert(&PATH, &user_req.key, &user)
+                            .upsert(&PATH, &user.key, &user)
+                            .and_then(move |_| state.users().delete(&PATH, &user_req.key))
                             .map_err(|_| APIError::FailedToWriteToStore)
                             .and_then(|_| Ok(HttpResponse::new(StatusCode::OK))),
                     )
