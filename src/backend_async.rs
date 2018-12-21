@@ -291,6 +291,7 @@ mod tests {
     use tokio::runtime::current_thread::Runtime;
     use tokio::timer::{Interval, Timeout};
 
+    use crate::error::Error;
     use crate::flag::*;
 
     use super::*;
@@ -322,12 +323,12 @@ mod tests {
 
     fn run<F>(to_run: F) -> F::Item
     where
-        F: Future,
+        F: Future<Error = Error>,
     {
         Runtime::new()
             .unwrap()
             .block_on(to_run)
-            .map_err(|_| ())
+            .map_err(|err| println!("Failed to run test future: {:?}", err))
             .unwrap()
     }
 
