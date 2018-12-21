@@ -111,4 +111,12 @@ mod tests {
         let _ = cache.insert("3", &val);
         assert_eq!(Some(val), cache.get("3").unwrap());
     }
+
+    #[test]
+    fn test_handles_0_duration() {
+        let cache: HashCache<Vec<u8>> = HashCache::new(Duration::new(0, 0));
+        let val = vec![1, 2, 3];
+        let _ = cache.insert("3", &val);
+        assert_eq!(None, cache.get("3").unwrap());
+    }
 }
