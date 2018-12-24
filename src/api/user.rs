@@ -5,7 +5,6 @@ use futures::{future, Future};
 use log::error;
 use serde_derive::{Deserialize, Serialize};
 use serde_json;
-use uuid::Uuid;
 
 use crate::api::error::APIError;
 use crate::api::user_req::UserReq;
@@ -21,13 +20,16 @@ struct APIUser {
 }
 
 impl APIUser {
-    pub fn into_user(&self) -> Result<User, ()> {
-        User::new(
-            Uuid::new_v4().to_string(),
-            self.key.clone(),
-            self.secret.clone().unwrap(),
-            self.is_admin,
-        )
+    pub fn into_user(self) -> Result<User, ()> {
+        let APIUser {
+            key,
+            secret,
+            is_admin,
+        } = self;
+
+        secret
+            .ok_or(())
+            .and_then(|secret| User::new(key, secret, is_admin))
     }
 }
 
@@ -41,7 +43,7 @@ impl From<&User> for APIUser {
     }
 }
 
-pub fn read<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+pub fn read(req: &HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
     let user_req = match UserReq::from_req(&req) {
         Ok(res) => res,
@@ -51,7 +53,7 @@ pub fn read<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, 
     Box::new(
         state
             .users()
-            .get(&PATH, &user_req.key)
+            .get(&PATH, user_req.key)
             .map_err(APIError::FailedToAccessStore)
             .and_then(|result| {
                 if let Some(user) = result {
@@ -65,50 +67,37 @@ pub fn read<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, 
     )
 }
 
-pub fn create<'r>(
-    req: &'r HttpRequest<State>,
-) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+pub fn create(req: &HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
 
-    Box::new(req.json()
-        .from_err()
-        .and_then(move |new_user: APIUser| {
-            // Disallow empty string key
-            if new_user.key.len() == 0 {
-                Either::A(future::err(APIError::InvalidFlag))
-            } else {
-                Either::B(
-                    state.users().get(&PATH, &new_user.key)
-                        .map_err(APIError::FailedToAccessStore)
-                        .and_then(move |result| {
-                            if result.is_some() {
-                                Either::A(future::err(APIError::AlreadyExists))
-                            } else {
-                                if let Ok(user) = new_user.into_user() {
-                                    Either::B(
-                                        state
-                                            .users()
-                                            .upsert(&PATH, &new_user.key, &user)
-                                            .map_err(|_| APIError::FailedToWriteToStore)
-                                            .and_then(|_| {
-                                                Ok(HttpResponse::new(StatusCode::CREATED))
-                                            })
-                                    )
-                                } else {
-                                    error!("Failed to generate user record for {}. Data could not be persisted", &new_user.key);
-                                    Either::A(future::err(APIError::SystemFailure))
-                                }
-                            }
-                        })
-                )
-            }
-        })
-    )
+    Box::new(req.json().from_err().and_then(move |new_user: APIUser| {
+        if let Ok(user) = new_user.into_user() {
+            Either::A(
+                state
+                    .users()
+                    .get(&PATH, user.key.clone())
+                    .map_err(APIError::FailedToAccessStore)
+                    .and_then(move |result| {
+                        if result.is_some() {
+                            Either::A(future::err(APIError::AlreadyExists))
+                        } else {
+                            Either::B(
+                                state
+                                    .users()
+                                    .upsert(&PATH, user.key.clone(), &user)
+                                    .map_err(|_| APIError::FailedToWriteToStore)
+                                    .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED))),
+                            )
+                        }
+                    }),
+            )
+        } else {
+            Either::B(future::err(APIError::InvalidPayload))
+        }
+    }))
 }
 
-pub fn update<'r>(
-    req: &'r HttpRequest<State>,
-) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+pub fn update(req: &HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
     let user_req = match UserReq::from_req(&req) {
         Ok(res) => res,
@@ -118,7 +107,7 @@ pub fn update<'r>(
     Box::new(req.json().from_err().and_then(move |new_user: APIUser| {
         state
             .users()
-            .get(&PATH, &user_req.key)
+            .get(&PATH, user_req.key.clone())
             .map_err(APIError::FailedToAccessStore)
             .and_then(move |result| {
                 if let Some(mut user) = result {
@@ -134,8 +123,8 @@ pub fn update<'r>(
                     Either::A(
                         state
                             .users()
-                            .upsert(&PATH, &user.key, &user)
-                            .and_then(move |_| state.users().delete(&PATH, &user_req.key))
+                            .upsert(&PATH, user.key.clone(), &user)
+                            .and_then(move |_| state.users().delete(&PATH, user_req.key))
                             .map_err(|_| APIError::FailedToWriteToStore)
                             .and_then(|_| Ok(HttpResponse::new(StatusCode::OK))),
                     )
@@ -146,9 +135,7 @@ pub fn update<'r>(
     }))
 }
 
-pub fn delete<'r>(
-    req: &'r HttpRequest<State>,
-) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+pub fn delete(req: &HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
     let user_req = match UserReq::from_req(&req) {
         Ok(res) => res,
@@ -158,7 +145,7 @@ pub fn delete<'r>(
     Box::new(
         state
             .users()
-            .delete(&PATH, &user_req.key)
+            .delete(&PATH, user_req.key)
             .map_err(|_| APIError::FailedToWriteToStore)
             .and_then(|result| {
                 if let Some(user) = result {
@@ -172,7 +159,7 @@ pub fn delete<'r>(
     )
 }
 
-pub fn all<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+pub fn all(req: &HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
 
     Box::new(

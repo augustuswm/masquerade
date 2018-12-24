@@ -89,7 +89,10 @@ pub fn authenticate<'r>(
     ))
 }
 
-fn find_user(key: &str, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = Error> {
+fn find_user<S>(key: S, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = Error>
+where
+    S: Into<String>,
+{
     store.get(&PATH, key)
 }
 
@@ -97,7 +100,7 @@ fn verify_auth(
     auth: AuthReq,
     store: &AsyncUserStore,
 ) -> impl Future<Item = Option<User>, Error = Error> {
-    find_user(auth.key.as_str(), store).and_then(move |user| {
+    find_user(auth.key.clone(), store).and_then(move |user| {
         let u = if let Some(user) = user {
             if user.verify_secret(&auth.secret) {
                 Some(user)
@@ -179,7 +182,7 @@ impl Middleware<State> for JWTAuth {
                 let req = req.clone();
 
                 Ok(Started::Future(Box::new(
-                    find_user(&token.claims.cid, req.state().users())
+                    find_user(token.claims.cid, req.state().users())
                         .map_err(APIError::FailedToAccessStore)
                         .map_err(|e| e.into())
                         .and_then(move |user| {

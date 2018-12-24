@@ -20,7 +20,7 @@ pub fn read<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, 
         Box::new(
             state
                 .flags()
-                .get(&flag_req.path, key)
+                .get(&flag_req.path, key.clone())
                 .map_err(APIError::FailedToAccessStore)
                 .and_then(|result| {
                     if let Some(flag) = result {
@@ -54,7 +54,7 @@ pub fn create<'r>(
             Either::B(
                 state
                     .flags()
-                    .get(&flag_req.path, flag.key())
+                    .get(&flag_req.path, flag.key().to_string())
                     .map_err(APIError::FailedToAccessStore)
                     .and_then(move |result| {
                         if result.is_some() {
@@ -63,7 +63,7 @@ pub fn create<'r>(
                             Either::B(
                                 state
                                     .flags()
-                                    .upsert(&flag_req.path, flag.key(), &flag)
+                                    .upsert(&flag_req.path, flag.key().to_string(), &flag)
                                     .map_err(|_| APIError::FailedToWriteToStore)
                                     .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED))),
                             )
@@ -74,9 +74,7 @@ pub fn create<'r>(
     }))
 }
 
-pub fn update<'r>(
-    req: &'r HttpRequest<State>,
-) -> Box<Future<Item = HttpResponse, Error = APIError>> {
+pub fn update(req: &HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     let state = req.state().clone();
     let flag_req = match FlagReq::from_req(&req) {
         Ok(res) => res,
@@ -88,7 +86,7 @@ pub fn update<'r>(
             Either::A(
                 state
                     .flags()
-                    .get(&path, &key)
+                    .get(&path, key.clone())
                     .map_err(APIError::FailedToAccessStore)
                     .and_then(move |result| {
                         if let Some(mut flag) = result {
@@ -98,7 +96,7 @@ pub fn update<'r>(
                             Either::A(
                                 state
                                     .flags()
-                                    .upsert(&path, &key, &flag)
+                                    .upsert(&path, key, &flag)
                                     .map_err(|_| APIError::FailedToWriteToStore)
                                     .and_then(|_| Ok(HttpResponse::new(StatusCode::OK))),
                             )
@@ -126,7 +124,7 @@ pub fn delete<'r>(
         Either::A(
             state
                 .flags()
-                .delete(&path, &key)
+                .delete(&path, key)
                 .map_err(|_| APIError::FailedToWriteToStore)
                 .and_then(|result| {
                     if let Some(flag) = result {

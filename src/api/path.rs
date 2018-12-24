@@ -38,7 +38,7 @@ pub fn create<'r>(
 
                     state
                         .paths()
-                        .get(&path, f_path.as_ref())
+                        .get(&path, f_path.as_ref().to_string())
                         .map_err(APIError::FailedToAccessStore)
                         .and_then(move |result| {
                             if result.is_some() {
@@ -47,7 +47,7 @@ pub fn create<'r>(
                                 Either::B(
                                     state
                                         .paths()
-                                        .upsert(&path, f_path.as_ref(), &f_path)
+                                        .upsert(&path, f_path.as_ref().to_string(), &f_path)
                                         .map_err(|_| APIError::FailedToWriteToStore)
                                         .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED))),
                                 )

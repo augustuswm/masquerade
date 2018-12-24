@@ -1,6 +1,6 @@
 use futures::future::Either;
 use futures::{future, Future, Stream};
-use log::{debug, info};
+use log::{debug, info, warn};
 use redis_async::client::paired::{paired_connect, PairedConnection};
 use redis_async::client::pubsub::{pubsub_connect, PubsubStream};
 use redis_async::resp::{FromResp, RespValue};
@@ -9,6 +9,7 @@ use redis_async::resp_array;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
+use std::fmt::Debug;
 use std::time::Duration;
 
 use crate::error::Error;
@@ -26,6 +27,26 @@ pub struct AsyncRedisStore<P, T> {
     all_cache: HashCache<HashMap<String, T>>,
     timeout: Duration,
     _key: ::std::marker::PhantomData<P>,
+}
+
+fn get_raw<T>(
+    conn: &PairedConnection,
+    path: &str,
+    key: &str,
+) -> impl Future<Item = Option<T>, Error = Error>
+where
+    T: FromResp,
+{
+    conn.send(resp_array!["HGET", path, key]).map_err(fail)
+}
+
+fn fail<T>(err: T) -> Error
+where
+    T: Into<Error>,
+    T: Debug,
+{
+    warn!("Operation failed: {:?}", err);
+    err.into()
 }
 
 impl<P, T> AsyncRedisStore<P, T>
@@ -87,17 +108,23 @@ where
         let key = [path.as_ref(), ALL_CACHE].concat();
         let topic = self.topic.clone();
 
-        debug!("Notifying: {} {}", topic, key);
+        debug!("Creating notification for: {} {}", topic, key);
 
         self.conn().and_then(|conn| {
-            conn.send::<i32>(resp_array!["PUBLISH", topic, key])
-                .map(|_| ())
-                .map_err(|err| err.into())
+            conn.send::<i32>(resp_array!["PUBLISH", &topic, &key])
+                .map(move |_| {
+                    debug!("Sent notification: {} {}", topic, key);
+                    ()
+                })
+                .map_err(fail)
         })
     }
 
-    pub fn get(&self, path: &P, key: &str) -> impl Future<Item = Option<T>, Error = Error> {
-        let key = key.to_string();
+    pub fn get<S>(&self, path: &P, key: S) -> impl Future<Item = Option<T>, Error = Error>
+    where
+        S: Into<String>,
+    {
+        let key = key.into();
         let full_path = self.full_path(path);
         let full_key = self.full_key(&path, &key);
         let cache = self.cache.clone();
@@ -112,15 +139,14 @@ where
             Ok(None) => {
                 debug!("Cache miss: {}", full_key);
                 Either::B(self.conn().and_then(move |conn| {
-                    conn.send(resp_array!["HGET", full_path, &key])
-                        .map(move |resp| {
-                            if let Some(ref val) = resp {
-                                let _ = cache.insert(full_key, val);
-                            };
+                    get_raw(&conn, &full_path, &key).map(move |resp| {
+                        if let Some(ref val) = resp {
+                            debug!("Get found element: {}", full_key);
+                            let _ = cache.insert(full_key, val);
+                        };
 
-                            resp
-                        })
-                        .map_err(|err| err.into())
+                        resp
+                    })
                 }))
             }
             Err(err) => Either::A(future::err(err)),
@@ -144,18 +170,21 @@ where
                 Either::B(self.conn().and_then(move |conn| {
                     conn.send::<HashMap<String, T>>(resp_array!["HGETALL", full_path])
                         .map(move |resp| {
+                            debug!("Getall found {} elements", resp.len());
                             let _ = all_cache.insert(key.as_str(), &resp);
                             resp
                         })
-                        .map_err(|err| err.into())
+                        .map_err(fail)
                 }))
             }
         }
     }
 
-    pub fn delete(&self, path: &P, key: &str) -> impl Future<Item = Option<T>, Error = Error> {
-        let key = key.to_string();
-        let path = path.clone();
+    pub fn delete<S>(&self, path: &P, key: S) -> impl Future<Item = Option<T>, Error = Error>
+    where
+        S: Into<String>,
+    {
+        let key = key.into();
         let full_key = self.full_key(&path, &key);
         let full_path = self.full_path(&path);
         let all_cache = self.all_cache.clone();
@@ -165,28 +194,28 @@ where
         debug!("Perform delete: {}", full_key);
 
         self.conn().and_then(move |conn| {
-            conn.send::<Option<T>>(resp_array!["HGET", &full_path, &key])
-                .map_err(|err| err.into())
-                .and_then(move |resp| {
-                    conn.send::<i32>(resp_array!["HDEL", &full_path, &key])
-                        .map_err(|err| err.into())
-                        .and_then(move |_| {
-                            let _ = all_cache.clear();
-                            let _ = cache.remove(full_key.as_str());
-                            notification.map(|_| resp)
-                        })
-                })
+            get_raw(&conn, &full_path, &key).and_then(move |resp| {
+                conn.send::<i32>(resp_array!["HDEL", &full_path, &key])
+                    .map_err(|err| err.into())
+                    .and_then(move |_| {
+                        let _ = all_cache.clear();
+                        let _ = cache.remove(full_key.as_str());
+                        notification.map(|_| resp)
+                    })
+            })
         })
     }
 
-    pub fn upsert(
+    pub fn upsert<S>(
         &self,
         path: &P,
-        key: &str,
+        key: S,
         item: &T,
-    ) -> impl Future<Item = Option<T>, Error = Error> {
-        let key = key.to_string();
-        let path = path.clone();
+    ) -> impl Future<Item = Option<T>, Error = Error>
+    where
+        S: Into<String>,
+    {
+        let key = key.into();
         let full_key = self.full_key(&path, &key);
         let full_path = self.full_path(&path);
         let item = item.to_owned();
@@ -203,17 +232,15 @@ where
         debug!("Perform upsert: {}", full_key);
 
         Either::B(self.conn().and_then(move |conn| {
-            conn.send::<Option<T>>(resp_array!["HGET", &full_path, &key])
-                .map_err(|err| err.into())
-                .and_then(move |resp| {
-                    conn.send::<i32>(resp_array!["HSET", &full_path, &key, item.clone().into()])
-                        .map_err(|err| err.into())
-                        .and_then(move |_| {
-                            let _ = all_cache.clear();
-                            let _ = cache.insert(full_key, &item);
-                            notification.map(|_| resp)
-                        })
-                })
+            get_raw(&conn, &full_path, &key).and_then(move |resp| {
+                conn.send::<i32>(resp_array!["HSET", &full_path, &key, item.clone().into()])
+                    .map_err(fail)
+                    .and_then(move |_| {
+                        let _ = all_cache.clear();
+                        let _ = cache.insert(full_key, &item);
+                        notification.map(|_| resp)
+                    })
+            })
         }))
     }
 

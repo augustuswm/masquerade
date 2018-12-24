@@ -6,6 +6,7 @@ use ring::rand::{SecureRandom, SystemRandom};
 use ring::{digest, pbkdf2};
 use serde_derive::{Deserialize, Serialize};
 use serde_json;
+use uuid::Uuid;
 
 static DIGEST_ALG: &'static digest::Algorithm = &digest::SHA256;
 const CREDENTIAL_LEN: usize = digest::SHA256_OUTPUT_LEN;
@@ -25,12 +26,12 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(uuid: String, key: String, secret: String, is_admin: bool) -> Result<User, ()> {
+    pub fn new(key: String, secret: String, is_admin: bool) -> Result<User, ()> {
         User::salt().map(|salt| {
             let hash = User::generate_hash(salt.as_bytes(), secret.as_str());
 
             User {
-                uuid: uuid,
+                uuid: Uuid::new_v4().to_string(),
                 key: key,
                 salt: salt,
                 hash: hash,

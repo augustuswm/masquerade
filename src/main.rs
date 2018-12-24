@@ -74,17 +74,12 @@ fn launch(config: Config) -> Result<(), String> {
 
     let default_user = DEFAULT_USER.to_string();
 
-    match run(users.get(&user::PATH, &default_user)) {
+    match run(users.get(&user::PATH, default_user.clone())) {
         None => {
-            let user = user::User::new(
-                Uuid::new_v4().to_string(),
-                DEFAULT_USER.to_string(),
-                DEFAULT_PASS.to_string(),
-                true,
-            )
-            .expect("Failed to create the default user. Unable to continue to setup.");
+            let user = user::User::new(DEFAULT_USER.to_string(), DEFAULT_PASS.to_string(), true)
+                .expect("Failed to create the default user. Unable to continue to setup.");
 
-            let _ = run(users.upsert(&user::PATH, &default_user, &user));
+            let _ = run(users.upsert(&user::PATH, default_user, &user));
 
             debug!("Created initial root user");
         }
