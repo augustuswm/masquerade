@@ -120,13 +120,13 @@ where
         })
     }
 
-    pub fn get<S>(&self, path: &P, key: S) -> impl Future<Item = Option<T>, Error = Error>
+    pub fn get<S>(&self, path: P, key: S) -> impl Future<Item = Option<T>, Error = Error>
     where
         S: Into<String>,
     {
         let key = key.into();
-        let full_path = self.full_path(path);
-        let full_key = self.full_key(&path, &key);
+        let full_path = self.full_path(&path);
+        let full_key = self.full_key(&path, key.as_ref());
         let cache = self.cache.clone();
 
         debug!("Perform get: {}", full_key);
@@ -139,7 +139,7 @@ where
             Ok(None) => {
                 debug!("Cache miss: {}", full_key);
                 Either::B(self.conn().and_then(move |conn| {
-                    get_raw(&conn, &full_path, &key).map(move |resp| {
+                    get_raw(&conn, &full_path, key.as_ref()).map(move |resp| {
                         if let Some(ref val) = resp {
                             debug!("Get found element: {}", full_key);
                             let _ = cache.insert(full_key, val);
@@ -153,9 +153,9 @@ where
         }
     }
 
-    pub fn get_all(&self, path: &P) -> impl Future<Item = HashMap<String, T>, Error = Error> {
+    pub fn get_all(&self, path: P) -> impl Future<Item = HashMap<String, T>, Error = Error> {
         let key = [path.as_ref(), ALL_CACHE].concat();
-        let full_path = self.full_path(path);
+        let full_path = self.full_path(&path);
         let all_cache = self.all_cache.clone();
 
         debug!("Perform get all: {}", key);
@@ -180,12 +180,12 @@ where
         }
     }
 
-    pub fn delete<S>(&self, path: &P, key: S) -> impl Future<Item = Option<T>, Error = Error>
+    pub fn delete<S>(&self, path: P, key: S) -> impl Future<Item = Option<T>, Error = Error>
     where
         S: Into<String>,
     {
         let key = key.into();
-        let full_key = self.full_key(&path, &key);
+        let full_key = self.full_key(&path, key.as_ref());
         let full_path = self.full_path(&path);
         let all_cache = self.all_cache.clone();
         let cache = self.cache.clone();
@@ -194,8 +194,8 @@ where
         debug!("Perform delete: {}", full_key);
 
         self.conn().and_then(move |conn| {
-            get_raw(&conn, &full_path, &key).and_then(move |resp| {
-                conn.send::<i32>(resp_array!["HDEL", &full_path, &key])
+            get_raw(&conn, &full_path, key.as_ref()).and_then(move |resp| {
+                conn.send::<i32>(resp_array!["HDEL", &full_path, key])
                     .map_err(|err| err.into())
                     .and_then(move |_| {
                         let _ = all_cache.clear();
@@ -208,7 +208,7 @@ where
 
     pub fn upsert<S>(
         &self,
-        path: &P,
+        path: P,
         key: S,
         item: &T,
     ) -> impl Future<Item = Option<T>, Error = Error>
@@ -216,7 +216,7 @@ where
         S: Into<String>,
     {
         let key = key.into();
-        let full_key = self.full_key(&path, &key);
+        let full_key = self.full_key(&path, key.as_ref());
         let full_path = self.full_path(&path);
         let item = item.to_owned();
         let all_cache = self.all_cache.clone();
@@ -232,8 +232,8 @@ where
         debug!("Perform upsert: {}", full_key);
 
         Either::B(self.conn().and_then(move |conn| {
-            get_raw(&conn, &full_path, &key).and_then(move |resp| {
-                conn.send::<i32>(resp_array!["HSET", &full_path, &key, item.clone().into()])
+            get_raw(&conn, &full_path, key.as_ref()).and_then(move |resp| {
+                conn.send::<i32>(resp_array!["HSET", &full_path, key, item.clone().into()])
                     .map_err(fail)
                     .and_then(move |_| {
                         let _ = all_cache.clear();
@@ -342,7 +342,7 @@ mod tests {
         let flags = vec![f("f1", false), f("f2", true)];
 
         for flag in flags.into_iter() {
-            let _ = run(store.upsert(&path(), flag.key(), &flag));
+            let _ = run(store.upsert(path(), flag.key(), &flag));
         }
 
         store
@@ -363,9 +363,9 @@ mod tests {
     fn test_gets_items() {
         let data = dataset("get_items", 0);
 
-        assert_eq!(run(data.get(&path(), "f1")).unwrap(), f("f1", false));
-        assert_eq!(run(data.get(&path(), "f2")).unwrap(), f("f2", true));
-        assert!(run(data.get(&path(), "f3")).is_none());
+        assert_eq!(run(data.get(path(), "f1")).unwrap(), f("f1", false));
+        assert_eq!(run(data.get(path(), "f2")).unwrap(), f("f2", true));
+        assert!(run(data.get(path(), "f3")).is_none());
     }
 
     #[test]
@@ -375,7 +375,7 @@ mod tests {
         test_map.insert("f2", f("f2", true));
         let dataset = dataset("all_items", 0);
 
-        let map = run(dataset.get_all(&path()));
+        let map = run(dataset.get_all(path()));
 
         assert_eq!(map.len(), test_map.len());
         assert_eq!(map.get("f1").unwrap(), test_map.get("f1").unwrap());
@@ -386,78 +386,78 @@ mod tests {
     fn test_deletes_without_cache() {
         let data = dataset("delete_no_cache", 0);
 
-        assert_eq!(run(data.get_all(&path())).len(), 2);
+        assert_eq!(run(data.get_all(path())).len(), 2);
 
         // Test flag #1
-        let f1 = run(data.delete(&path(), "f1"));
+        let f1 = run(data.delete(path(), "f1"));
         assert_eq!(f1.unwrap(), f("f1", false));
 
-        let f1_2 = run(data.get(&path(), "f1"));
+        let f1_2 = run(data.get(path(), "f1"));
         assert!(f1_2.is_none());
 
         // Test flag #2
-        let f2 = run(data.delete(&path(), "f2"));
+        let f2 = run(data.delete(path(), "f2"));
         assert_eq!(f2.unwrap(), f("f2", true));
 
-        let f2_2 = run(data.get(&path(), "f2"));
+        let f2_2 = run(data.get(path(), "f2"));
         assert!(f2_2.is_none());
 
-        assert_eq!(run(data.get_all(&path())).len(), 0);
+        assert_eq!(run(data.get_all(path())).len(), 0);
     }
 
     #[test]
     fn test_deletes_with_cache() {
         let data = dataset("delete_cache", 30);
 
-        assert_eq!(run(data.get_all(&path())).len(), 2);
+        assert_eq!(run(data.get_all(path())).len(), 2);
 
         // Test flag #1
-        let f1 = run(data.delete(&path(), "f1"));
+        let f1 = run(data.delete(path(), "f1"));
         assert_eq!(f1.unwrap(), f("f1", false));
 
-        let f1_2 = run(data.get(&path(), "f1"));
+        let f1_2 = run(data.get(path(), "f1"));
         assert!(f1_2.is_none());
 
         // Test flag #2
-        let f2 = run(data.delete(&path(), "f2"));
+        let f2 = run(data.delete(path(), "f2"));
         assert_eq!(f2.unwrap(), f("f2", true));
 
-        let f2_2 = run(data.get(&path(), "f2"));
+        let f2_2 = run(data.get(path(), "f2"));
         assert!(f2_2.is_none());
 
-        assert_eq!(run(data.get_all(&path())).len(), 0);
+        assert_eq!(run(data.get_all(path())).len(), 0);
     }
 
     #[test]
     fn test_replacements_without_cache() {
         let data = dataset("replace_no_cache", 0);
 
-        assert_eq!(run(data.get_all(&path())).len(), 2);
+        assert_eq!(run(data.get_all(path())).len(), 2);
 
         // Test flag #1
-        let f1 = run(data.upsert(&path(), "f1", &f("f1", true)));
+        let f1 = run(data.upsert(path(), "f1", &f("f1", true)));
         assert_eq!(f1.unwrap(), f("f1", false));
 
-        let f1_2 = run(data.get(&path(), "f1"));
+        let f1_2 = run(data.get(path(), "f1"));
         assert_eq!(f1_2.unwrap(), f("f1", true));
 
-        assert_eq!(run(data.get_all(&path())).len(), 2);
+        assert_eq!(run(data.get_all(path())).len(), 2);
     }
 
     #[test]
     fn test_replacements_with_cache() {
         let data = dataset("replace_cache", 30);
 
-        assert_eq!(run(data.get_all(&path())).len(), 2);
+        assert_eq!(run(data.get_all(path())).len(), 2);
 
         // Test flag #1
-        let f1 = run(data.upsert(&path(), "f1", &f("f1", true)));
+        let f1 = run(data.upsert(path(), "f1", &f("f1", true)));
         assert_eq!(f1.unwrap(), f("f1", false));
 
-        let f1_2 = run(data.get(&path(), "f1"));
+        let f1_2 = run(data.get(path(), "f1"));
         assert_eq!(f1_2.unwrap(), f("f1", true));
 
-        assert_eq!(run(data.get_all(&path())).len(), 2);
+        assert_eq!(run(data.get_all(path())).len(), 2);
     }
 
     #[test]

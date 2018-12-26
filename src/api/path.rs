@@ -1,4 +1,5 @@
 use actix_web::http::StatusCode;
+use actix_web::State as ActixState;
 use actix_web::*;
 use futures::future::Either;
 use futures::{future, Future};
@@ -20,10 +21,9 @@ struct FlagPathReq {
     pub env: String,
 }
 
-pub fn create<'r>(
-    req: &'r HttpRequest<State>,
+pub fn create(
+    (state, req): (ActixState<State>, HttpRequest<State>),
 ) -> Box<Future<Item = HttpResponse, Error = APIError>> {
-    let state = req.state().clone();
     let ext = req.extensions();
 
     if let Some(u) = ext.get::<User>() {
@@ -33,12 +33,11 @@ pub fn create<'r>(
             req.json()
                 .from_err()
                 .and_then(move |f_path_req: FlagPathReq| {
-                    let path = PATH_KEY.to_string();
-                    let f_path = FlagPath::new(user.uuid.clone(), f_path_req.app, f_path_req.env);
+                    let f_path = FlagPath::new(user.uuid, f_path_req.app, f_path_req.env);
 
                     state
                         .paths()
-                        .get(&path, f_path.as_ref().to_string())
+                        .get(PATH_KEY.to_string(), f_path.as_ref().to_string())
                         .map_err(APIError::FailedToAccessStore)
                         .and_then(move |result| {
                             if result.is_some() {
@@ -47,7 +46,11 @@ pub fn create<'r>(
                                 Either::B(
                                     state
                                         .paths()
-                                        .upsert(&path, f_path.as_ref().to_string(), &f_path)
+                                        .upsert(
+                                            PATH_KEY.to_string(),
+                                            f_path.as_ref().to_string(),
+                                            &f_path,
+                                        )
                                         .map_err(|_| APIError::FailedToWriteToStore)
                                         .and_then(|_| Ok(HttpResponse::new(StatusCode::CREATED))),
                                 )
@@ -60,13 +63,11 @@ pub fn create<'r>(
     }
 }
 
-pub fn all<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
-    let state = req.state().clone();
-
+pub fn all(state: ActixState<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     Box::new(future::ok(()).and_then(move |_| {
         state
             .paths()
-            .get_all(&PATH_KEY.to_string())
+            .get_all(PATH_KEY.to_string())
             .and_then(|paths| {
                 Ok(
                     serde_json::to_string(&paths.values().collect::<Vec<&FlagPath>>())

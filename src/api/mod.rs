@@ -17,7 +17,6 @@ mod path;
 mod state;
 mod stream;
 mod user;
-mod user_req;
 
 type State = Arc<state::AppState>;
 

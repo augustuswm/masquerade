@@ -1,5 +1,5 @@
 use actix_web::http::ConnectionType;
-use actix_web::{http, HttpRequest, HttpResponse};
+use actix_web::{http, HttpResponse, State as ActixState};
 use bytes::Bytes;
 use futures::{future, stream, Future, Stream};
 use serde_json;
@@ -11,17 +11,9 @@ use crate::flag::Flag;
 
 const HEADER: &'static str = "event:data\n";
 
-pub fn flag_stream<'r>(
-    req: &'r HttpRequest<State>,
+pub fn flag_stream(
+    (flag_req, state): (FlagReq, ActixState<State>),
 ) -> Box<Future<Item = HttpResponse, Error = APIError>> {
-    let flag_req = match FlagReq::from_req(&req) {
-        Ok(res) => res,
-        Err(err) => return Box::new(future::err(err)),
-    };
-
-    let state = req.state().clone();
-    let path = flag_req.path;
-
     Box::new(
         state
             .flags()
@@ -45,7 +37,7 @@ pub fn flag_stream<'r>(
                             .and_then(move |_| {
                                 state
                                     .flags()
-                                    .get_all(&path)
+                                    .get_all(flag_req.path.clone())
                                     .map_err(APIError::FailedToAccessStore)
                                     .and_then(|flags| {
                                         let mut flag_list = flags.values().collect::<Vec<&Flag>>();

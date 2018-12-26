@@ -1,10 +1,12 @@
-use actix_web::HttpRequest;
+use actix_web::dev::AsyncResult;
+use actix_web::{FromRequest, HttpRequest, Path};
 
 use crate::api::error::APIError;
 use crate::api::State;
 use crate::flag::FlagPath;
 use crate::user::User;
 
+#[derive(Clone, Debug)]
 pub struct FlagReq {
     pub path: FlagPath,
     pub key: Option<String>,
@@ -37,3 +39,32 @@ impl FlagReq {
         (self.path, self.key)
     }
 }
+
+impl FromRequest<State> for FlagReq {
+    type Config = ();
+    type Result = Result<FlagReq, APIError>;
+
+    fn from_request(req: &HttpRequest<State>, _cfg: &Self::Config) -> Self::Result {
+        if let Ok(params) = Path::<(String, String, Option<String>)>::extract(req) {
+            if let Some(user) = req.extensions().get::<User>() {
+                let params = params.clone();
+                Ok(FlagReq {
+                    path: FlagPath::new(user.uuid.clone(), params.0, params.1),
+                    key: params.2,
+                })
+            } else {
+                Err(APIError::Unauthorized)
+            }
+        } else {
+            Err(APIError::FailedToFind)
+        }
+    }
+}
+
+// pub trait FromRequest<S>: Sized {
+//     type Config: Default;
+//     type Result: Into<AsyncResult<Self>>;
+//     fn from_request(req: &HttpRequest<S>, cfg: &Self::Config) -> Self::Result;
+
+//     fn extract(req: &HttpRequest<S>) -> Self::Result { ... }
+// }

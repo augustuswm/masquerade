@@ -58,13 +58,10 @@ impl FromStr for AuthReq {
     }
 }
 
-pub fn authenticate<'r>(
-    req: &'r HttpRequest<State>,
-) -> Box<Future<Item = HttpResponse, Error = APIError>> {
-    let ext = req.extensions();
-
+pub fn authenticate(req: HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     Box::new(future::result(
-        ext.get::<User>()
+        req.extensions()
+            .get::<User>()
             .ok_or(APIError::Unauthorized)
             .and_then(|user| {
                 SystemTime::now()
@@ -89,20 +86,21 @@ pub fn authenticate<'r>(
     ))
 }
 
-fn find_user<S>(key: S, store: &AsyncUserStore) -> impl Future<Item = Option<User>, Error = Error>
-where
-    S: Into<String>,
-{
-    store.get(&PATH, key)
+fn find_user(
+    key: String,
+    store: &AsyncUserStore,
+) -> impl Future<Item = Option<User>, Error = Error> {
+    store.get(PATH, key)
 }
 
 fn verify_auth(
     auth: AuthReq,
     store: &AsyncUserStore,
 ) -> impl Future<Item = Option<User>, Error = Error> {
-    find_user(auth.key.clone(), store).and_then(move |user| {
+    let AuthReq { key, secret } = auth;
+    find_user(key, store).and_then(move |user| {
         let u = if let Some(user) = user {
-            if user.verify_secret(&auth.secret) {
+            if user.verify_secret(&secret) {
                 Some(user)
             } else {
                 None

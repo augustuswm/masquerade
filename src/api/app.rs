@@ -24,46 +24,48 @@ pub fn api(state: State) -> App<State> {
         .resource("/authenticate/", |r| {
             r.middleware(auth::BasicAuth);
             r.middleware(auth::RequireUser);
-            r.method(Method::POST).a(auth::authenticate)
+            r.method(Method::POST).with_async(auth::authenticate)
         })
         .resource("/path/", |r| {
             r.middleware(auth::JWTAuth);
             r.middleware(auth::RequireUser);
-            r.method(Method::POST).a(path::create)
+            r.method(Method::POST).with_async(path::create)
         })
         .resource("/paths/", |r| {
             r.middleware(auth::JWTAuth);
             r.middleware(auth::RequireUser);
-            r.method(Method::GET).a(path::all)
+            r.method(Method::GET).with_async(path::all)
         })
         .resource("/stream/{app}/{env}/", |r| {
             r.middleware(auth::JWTAuth);
             r.middleware(auth::RequireUser);
-            r.method(Method::GET).a(stream::flag_stream)
+            r.method(Method::GET).with_async(stream::flag_stream)
         })
         .scope("/users", |scope| {
             scope
                 .middleware(auth::BasicAuth)
                 .middleware(admin::Admin)
                 .resource("/{key}/", |r| {
-                    r.method(Method::GET).a(user::read);
-                    r.method(Method::POST).a(user::update);
-                    r.method(Method::DELETE).a(user::delete);
+                    r.method(Method::GET).with_async(user::read);
+                    r.method(Method::POST).with_async(user::update);
+                    r.method(Method::DELETE).with_async(user::delete);
                 })
                 .resource("/", |r| {
-                    r.method(Method::GET).a(user::all);
-                    r.method(Method::POST).a(user::create);
+                    r.method(Method::GET).with_async(user::all);
+                    r.method(Method::POST).with_async(user::create);
                 })
         })
         .scope("/{app}/{env}", |scope| {
             scope
                 .middleware(auth::JWTAuth)
                 .middleware(auth::RequireUser)
-                .resource("/flag/", |r| r.method(Method::POST).a(flag::create))
+                .resource("/flag/", |r| {
+                    r.method(Method::POST).with_async(flag::create)
+                })
                 .resource("/flag/{key}/", |r| {
-                    r.method(Method::GET).a(flag::read);
-                    r.method(Method::POST).a(flag::update);
-                    r.method(Method::DELETE).a(flag::delete)
+                    r.method(Method::GET).with_async(flag::read);
+                    r.method(Method::POST).with_async(flag::update);
+                    r.method(Method::DELETE).with_async(flag::delete)
                 })
                 .resource("/flags/", |r| r.method(Method::GET).a(flag::all))
         })
