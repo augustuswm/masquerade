@@ -67,7 +67,7 @@ pub fn api(state: State) -> App<State> {
                     r.method(Method::POST).with_async(flag::update);
                     r.method(Method::DELETE).with_async(flag::delete)
                 })
-                .resource("/flags/", |r| r.method(Method::GET).a(flag::all))
+                .resource("/flags/", |r| r.method(Method::GET).with_async(flag::all))
         })
 }
 

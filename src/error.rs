@@ -7,15 +7,14 @@ use std::fmt;
 
 #[derive(Debug)]
 pub enum Error {
-    CachePoisonedError,
     InvalidConfig(ConfigError),
     FailedToParsePath,
+    EmptyKey,
     RedisAsyncFailure(RedisAsyncError),
     RedisAsyncSubMessageFailure,
     InvalidRedisConfig,
     AllCacheMissing,
     FailedToSerializeItem,
-    UpdatedAtPoisoned,
 }
 
 impl From<RedisAsyncError> for Error {
@@ -33,15 +32,14 @@ impl From<SerdeError> for Error {
 impl StdError for Error {
     fn description(&self) -> &str {
         match self {
-            Error::CachePoisonedError => "Failed to access cache due to poisoning",
             Error::InvalidConfig(err) => err.description(),
             Error::FailedToParsePath => "Unable to parse into path",
+            Error::EmptyKey => "Unable to operate on an empty key",
             Error::RedisAsyncFailure(err) => err.description(),
             Error::RedisAsyncSubMessageFailure => "Async Redis message failed",
             Error::InvalidRedisConfig => "Can not create RedisStore from invalid config",
             Error::AllCacheMissing => "Full cache is misconfigured",
             Error::FailedToSerializeItem => "Failed to turn item into json",
-            Error::UpdatedAtPoisoned => "",
         }
     }
 }

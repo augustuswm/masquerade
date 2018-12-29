@@ -14,25 +14,26 @@ class Updater extends React.Component {
   }
 
   shouldComponentUpdate(nextProps) {
-    return this.props.app !== nextProps.app || this.props.env !== nextProps.env ||
-      this.props.apiKey !== nextProps.apiKey || this.props.apiSecret !== nextProps.apiSecret;
+    return this.props.app !== nextProps.app ||
+      this.props.env !== nextProps.env ||
+      this.props.token !== nextProps.token;
   }
 
   componentDidMount() {
   }
 
   componentDidUpdate() {
+    console.log('updated');
 
     // Close any existing connections
     if (this.state.stream && this.state.stream.close) {
       this.state.stream.close();
     }
 
-    let { app, env, apiKey, apiSecret, baseUrl } = this.props;
+    let { app, env, token, baseUrl } = this.props;
 
-    if (app && env && apiKey && apiSecret) {
-      let auth = btoa(apiKey + ':' + apiSecret);
-      let stream = new EventSource(`${window.location.origin}${baseUrl}/stream/${app}/${env}/?auth=${auth}`);
+    if (app && env && token) {
+      let stream = new EventSource(`${window.location.origin}${baseUrl}/stream/${app}/${env}/?token=${token}`);
       stream.addEventListener('data', e => this.update(e.data));
 
       this.setState({

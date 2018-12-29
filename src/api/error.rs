@@ -8,6 +8,7 @@ use serde_json::Error as SerdeError;
 use std::error::Error as StdError;
 use std::fmt;
 
+use crate::api::state::StoreElements;
 use crate::error::Error;
 
 #[derive(Debug)]
@@ -15,7 +16,7 @@ pub enum APIError {
     AlreadyExists,
     ConfigFailure,
     FailedToAccessStore(Error),
-    FailedToFind,
+    FailedToFind(StoreElements),
     FailedToParseAuth,
     FailedToParseBody,
     FailedToParseParams,
@@ -34,7 +35,7 @@ impl APIError {
             &APIError::AlreadyExists => StatusCode::CONFLICT,
             &APIError::ConfigFailure => StatusCode::INTERNAL_SERVER_ERROR,
             &APIError::FailedToAccessStore(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            &APIError::FailedToFind => StatusCode::NOT_FOUND,
+            &APIError::FailedToFind(_) => StatusCode::NOT_FOUND,
             &APIError::FailedToParseAuth => StatusCode::BAD_REQUEST,
             &APIError::FailedToParseBody => StatusCode::BAD_REQUEST,
             &APIError::FailedToParseParams => StatusCode::BAD_REQUEST,
@@ -55,7 +56,11 @@ impl StdError for APIError {
             APIError::AlreadyExists => "Flag already exists",
             APIError::ConfigFailure => "Server configuration failure",
             APIError::FailedToAccessStore(err) => err.description(),
-            APIError::FailedToFind => "Failed to find flag",
+            APIError::FailedToFind(object_type) => match object_type {
+                StoreElements::Flag => "Failed to find flag",
+                StoreElements::Path => "Failed to find path",
+                StoreElements::User => "Failed to find user",
+            },
             APIError::FailedToParseAuth => "Failed to parse auth payload",
             APIError::FailedToParseBody => "Failed to parse request payload",
             APIError::FailedToParseParams => "Failed to parse request parameters",

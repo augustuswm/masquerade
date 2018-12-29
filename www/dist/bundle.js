@@ -1521,6 +1521,7 @@ var mapStateToProps = function mapStateToProps(state) {
     refresh: state.refresh,
     apiKey: state.apiKey,
     apiSecret: state.apiSecret,
+    token: state.token,
     pathMenuOpen: state.pathMenuOpen,
     filterText: state.filterText,
     appCreateModalOpen: state.appCreateModalOpen,
@@ -59506,7 +59507,7 @@ var Updater = function (_React$Component) {
   _createClass(Updater, [{
     key: 'shouldComponentUpdate',
     value: function shouldComponentUpdate(nextProps) {
-      return this.props.app !== nextProps.app || this.props.env !== nextProps.env || this.props.apiKey !== nextProps.apiKey || this.props.apiSecret !== nextProps.apiSecret;
+      return this.props.app !== nextProps.app || this.props.env !== nextProps.env || this.props.token !== nextProps.token;
     }
   }, {
     key: 'componentDidMount',
@@ -59516,6 +59517,8 @@ var Updater = function (_React$Component) {
     value: function componentDidUpdate() {
       var _this2 = this;
 
+      console.log('updated');
+
       // Close any existing connections
       if (this.state.stream && this.state.stream.close) {
         this.state.stream.close();
@@ -59524,14 +59527,12 @@ var Updater = function (_React$Component) {
       var _props = this.props,
           app = _props.app,
           env = _props.env,
-          apiKey = _props.apiKey,
-          apiSecret = _props.apiSecret,
+          token = _props.token,
           baseUrl = _props.baseUrl;
 
 
-      if (app && env && apiKey && apiSecret) {
-        var auth = btoa(apiKey + ':' + apiSecret);
-        var stream = new EventSource('' + window.location.origin + baseUrl + '/stream/' + app + '/' + env + '/?auth=' + auth);
+      if (app && env && token) {
+        var stream = new EventSource('' + window.location.origin + baseUrl + '/stream/' + app + '/' + env + '/?token=' + token);
         stream.addEventListener('data', function (e) {
           return _this2.update(e.data);
         });

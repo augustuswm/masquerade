@@ -1,17 +1,15 @@
-// #![allow(dead_code)]
-
 use futures::Future;
 use log::{debug, warn};
 use structopt::StructOpt;
 use tokio::runtime::current_thread::Runtime;
-use uuid::Uuid;
 
 use std::env;
 use std::fmt::Display;
 use std::time::Duration;
 
-mod api;
 #[macro_use]
+mod redis;
+mod api;
 mod backend_async;
 mod cli;
 mod config;
@@ -81,7 +79,7 @@ fn launch(config: Config) -> Result<(), String> {
 
             let _ = run(users.upsert(user::PATH, default_user, &user));
 
-            debug!("Created initial root user");
+            debug!("Created default user");
         }
         Some(user) => {
             if user.verify_secret(DEFAULT_PASS) {

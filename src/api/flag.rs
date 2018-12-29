@@ -7,6 +7,7 @@ use serde_json;
 
 use crate::api::error::APIError;
 use crate::api::flag_req::FlagReq;
+use crate::api::state::StoreElements;
 use crate::api::State;
 use crate::flag::Flag;
 
@@ -25,7 +26,7 @@ pub fn read(
                             .map(|val| val.into())
                             .or(Err(APIError::FailedToSerialize))
                     } else {
-                        Err(APIError::FailedToFind)
+                        Err(APIError::FailedToFind(StoreElements::Flag))
                     }
                 }),
         )
@@ -87,7 +88,7 @@ pub fn update(
                                 .and_then(|_| Ok(HttpResponse::new(StatusCode::OK))),
                         )
                     } else {
-                        Either::B(future::err(APIError::FailedToFind))
+                        Either::B(future::err(APIError::FailedToFind(StoreElements::Flag)))
                     }
                 }),
         )
@@ -111,7 +112,7 @@ pub fn delete(
                             .map(|val| val.into())
                             .or(Err(APIError::FailedToSerialize))
                     } else {
-                        Err(APIError::FailedToFind)
+                        Err(APIError::FailedToFind(StoreElements::Flag))
                     }
                 }),
         )
@@ -120,13 +121,9 @@ pub fn delete(
     })
 }
 
-pub fn all<'r>(req: &'r HttpRequest<State>) -> Box<Future<Item = HttpResponse, Error = APIError>> {
-    let state = req.state().clone();
-    let flag_req = match FlagReq::from_req(&req) {
-        Ok(res) => res,
-        Err(err) => return Box::new(future::err(err)),
-    };
-
+pub fn all(
+    (flag_req, state): (FlagReq, ActixState<State>),
+) -> Box<Future<Item = HttpResponse, Error = APIError>> {
     Box::new(
         state
             .flags()

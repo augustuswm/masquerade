@@ -1,9 +1,10 @@
 use actix_web::middleware::{Middleware, Response, Started};
-use actix_web::{HttpRequest, HttpResponse, Result};
+use actix_web::{FromRequest, HttpRequest, HttpResponse, Query, Result};
 use base64::decode;
 use futures::{future, Future};
 use http::{header, StatusCode};
 use jsonwebtoken::{decode as jwt_decode, encode as jwt_encode, Header, Validation};
+use log::debug;
 use serde_derive::{Deserialize, Serialize};
 
 use std::str;
@@ -30,6 +31,11 @@ pub struct RequireUser;
 pub struct AuthReq {
     key: String,
     secret: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TokenReq {
+    token: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -167,7 +173,7 @@ impl Middleware<State> for JWTAuth {
             let mut validation = Validation::default();
             validation.iss = Some(APP_NAME.to_string());
 
-            let jwt = req
+            let mut jwt = req
                 .headers()
                 .get(header::AUTHORIZATION)
                 .and_then(|auth| auth.to_str().ok())
@@ -175,6 +181,15 @@ impl Middleware<State> for JWTAuth {
                     let secret = req.state().jwt_secret();
                     jwt_decode::<Claims>(&auth[6..], secret.as_ref(), &validation).ok()
                 });
+
+            if jwt.is_none() {
+                debug!("Request header does not contain token. Checking querystring");
+                jwt = Query::<TokenReq>::extract(req).ok().and_then(|token_req| {
+                    debug!("Found token in querystring");
+                    let secret = req.state().jwt_secret();
+                    jwt_decode::<Claims>(&token_req.token, secret.as_ref(), &validation).ok()
+                });;
+            }
 
             if let Some(token) = jwt {
                 let req = req.clone();

@@ -1,10 +1,8 @@
-use log::error;
+use hashbrown::HashMap;
+use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
-
-use crate::error::Error;
 
 #[derive(Clone, Debug)]
 pub struct HashCache<T> {
@@ -21,8 +19,6 @@ impl<T> From<HashMap<String, (T, Instant)>> for HashCache<T> {
     }
 }
 
-pub type CacheResult<T> = Result<T, Error>;
-
 impl<T> HashCache<T> {
     pub fn new(duration: Duration) -> HashCache<T> {
         HashCache {
@@ -31,18 +27,12 @@ impl<T> HashCache<T> {
         }
     }
 
-    pub fn reader(&self) -> CacheResult<RwLockReadGuard<HashMap<String, (T, Instant)>>> {
-        self.cache.read().map_err(|_| {
-            error!("Failed to acquire read guard for cache failed due to poisoning");
-            Error::CachePoisonedError
-        })
+    pub fn reader(&self) -> RwLockReadGuard<HashMap<String, (T, Instant)>> {
+        self.cache.read()
     }
 
-    pub fn writer(&self) -> CacheResult<RwLockWriteGuard<HashMap<String, (T, Instant)>>> {
-        self.cache.write().map_err(|_| {
-            error!("Failed to acquire write guard for cache failed due to poisoning");
-            Error::CachePoisonedError
-        })
+    pub fn writer(&self) -> RwLockWriteGuard<HashMap<String, (T, Instant)>> {
+        self.cache.write()
     }
 
     fn ignore_dur(&self) -> bool {
@@ -51,52 +41,47 @@ impl<T> HashCache<T> {
 }
 
 impl<T: Clone> HashCache<T> {
-    pub fn get<'a, S: Into<&'a str>>(&self, key: S) -> CacheResult<Option<T>> {
-        self.reader().map(|reader| {
-            let entry = reader.get(key.into());
+    pub fn get<'a, S: Into<&'a str>>(&self, key: S) -> Option<T> {
+        let reader = self.reader();
+        let entry = reader.get(key.into());
 
-            match entry {
-                Some(&(ref val, created)) => {
-                    if !self.ignore_dur() || created.elapsed() <= self.duration {
-                        Some(val.clone())
-                    } else {
-                        None
-                    }
-                }
-                _ => None,
-            }
-        })
-    }
-
-    pub fn get_all(&self) -> CacheResult<HashMap<String, T>> {
-        let mut res: HashMap<String, T> = HashMap::new();
-
-        self.reader().map(|reader| {
-            for (k, &(ref f, created)) in reader.iter() {
+        match entry {
+            Some(&(ref val, created)) => {
                 if !self.ignore_dur() || created.elapsed() <= self.duration {
-                    res.insert(k.clone(), f.clone());
+                    Some(val.clone())
+                } else {
+                    None
                 }
             }
-
-            res
-        })
+            _ => None,
+        }
     }
 
-    pub fn insert<S: Into<String>>(&self, key: S, val: &T) -> CacheResult<Option<T>> {
-        self.writer().map(|mut writer| {
-            writer
-                .insert(key.into(), (val.clone(), Instant::now()))
-                .map(|(v, _)| v)
-        })
+    pub fn get_all(&self) -> HashMap<String, T> {
+        let mut res: HashMap<String, T> = HashMap::new();
+        let reader = self.reader();
+
+        for (k, &(ref f, created)) in reader.iter() {
+            if !self.ignore_dur() || created.elapsed() <= self.duration {
+                res.insert(k.clone(), f.clone());
+            }
+        }
+
+        res
     }
 
-    pub fn remove<'a, S: Into<&'a str>>(&self, key: S) -> CacheResult<Option<T>> {
+    pub fn insert<S: Into<String>>(&self, key: S, val: &T) -> Option<T> {
         self.writer()
-            .map(|mut writer| writer.remove(key.into()).map(|(v, _)| v))
+            .insert(key.into(), (val.clone(), Instant::now()))
+            .map(|(v, _)| v)
     }
 
-    pub fn clear(&self) -> CacheResult<()> {
-        self.writer().map(|mut writer| writer.clear())
+    pub fn remove<'a, S: Into<&'a str>>(&self, key: S) -> Option<T> {
+        self.writer().remove(key.into()).map(|(v, _)| v)
+    }
+
+    pub fn clear(&self) {
+        self.writer().clear()
     }
 }
 
@@ -109,7 +94,7 @@ mod tests {
         let cache: HashCache<Vec<u8>> = HashCache::new(Duration::new(5, 0));
         let val = vec![1, 2, 3];
         let _ = cache.insert("3", &val);
-        assert_eq!(Some(val), cache.get("3").unwrap());
+        assert_eq!(Some(val), cache.get("3"));
     }
 
     #[test]
@@ -117,6 +102,6 @@ mod tests {
         let cache: HashCache<Vec<u8>> = HashCache::new(Duration::new(0, 0));
         let val = vec![1, 2, 3];
         let _ = cache.insert("3", &val);
-        assert_eq!(None, cache.get("3").unwrap());
+        assert_eq!(None, cache.get("3"));
     }
 }

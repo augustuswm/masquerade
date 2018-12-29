@@ -7,6 +7,7 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json;
 
 use crate::api::error::APIError;
+use crate::api::state::StoreElements;
 use crate::api::State;
 use crate::user::{User, PATH};
 
@@ -57,7 +58,7 @@ pub fn read(
                         .map(|val| val.into())
                         .or(Err(APIError::FailedToSerialize))
                 } else {
-                    Err(APIError::FailedToFind)
+                    Err(APIError::FailedToFind(StoreElements::User))
                 }
             }),
     )
@@ -121,7 +122,7 @@ pub fn update(
                             .and_then(|_| Ok(HttpResponse::new(StatusCode::OK))),
                     )
                 } else {
-                    Either::B(future::err(APIError::FailedToFind))
+                    Either::B(future::err(APIError::FailedToFind(StoreElements::User)))
                 }
             }),
     )
@@ -141,7 +142,7 @@ pub fn delete(
                         .map(|val| val.into())
                         .or(Err(APIError::FailedToSerialize))
                 } else {
-                    Err(APIError::FailedToFind)
+                    Err(APIError::FailedToFind(StoreElements::User))
                 }
             }),
     )

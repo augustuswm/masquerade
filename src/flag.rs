@@ -1,4 +1,3 @@
-use redis_async;
 use redis_async::error::Error as RedisAsyncError;
 use redis_async::resp::{FromResp, RespValue};
 use serde_derive::{Deserialize, Serialize};

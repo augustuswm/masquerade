@@ -1,28 +1,30 @@
 use futures::future::Either;
 use futures::{future, Future, Stream};
+use hashbrown::HashMap;
 use log::{debug, info, warn};
 use redis_async::client::paired::{paired_connect, PairedConnection};
 use redis_async::client::pubsub::{pubsub_connect, PubsubStream};
 use redis_async::resp::{FromResp, RespValue};
 use redis_async::resp_array;
 
-use std::collections::HashMap;
-use std::net::SocketAddr;
-
+use std::borrow::Cow;
 use std::fmt::Debug;
+use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::error::Error;
 use crate::hash_cache::HashCache;
+use crate::redis::RedisHashMap;
 
-const FAIL: &'static [u8; 4] = &[102, 97, 105, 108];
+pub const FAIL: &'static [u8; 4] = &[102, 97, 105, 108];
 const ALL_CACHE: &'static str = ":all_flags$";
 
 #[derive(Debug)]
 pub struct AsyncRedisStore<P, T> {
     key: String,
     address: SocketAddr,
-    topic: String,
+    topic: Arc<String>,
     cache: HashCache<T>,
     all_cache: HashCache<HashMap<String, T>>,
     timeout: Duration,
@@ -37,7 +39,11 @@ fn get_raw<T>(
 where
     T: FromResp,
 {
-    conn.send(resp_array!["HGET", path, key]).map_err(fail)
+    if key == "" {
+        Either::A(future::err(Error::EmptyKey))
+    } else {
+        Either::B(conn.send(resp_array!["HGET", path, key]).map_err(fail))
+    }
 }
 
 fn fail<T>(err: T) -> Error
@@ -47,6 +53,16 @@ where
 {
     warn!("Operation failed: {:?}", err);
     err.into()
+}
+
+fn send_notification(
+    conn: &PairedConnection,
+    topic: &str,
+    key: &str,
+) -> impl Future<Item = (), Error = Error> {
+    conn.send::<i32>(resp_array!["PUBLISH", topic, key])
+        .map(move |_| ())
+        .map_err(fail)
 }
 
 impl<P, T> AsyncRedisStore<P, T>
@@ -69,7 +85,7 @@ where
         AsyncRedisStore {
             key: AsyncRedisStore::<P, T>::features_key(prefix),
             address: address,
-            topic: topic.into(),
+            topic: Arc::new(topic.into()),
             cache: HashCache::new(dur),
             all_cache: HashCache::new(dur),
             timeout: dur,
@@ -81,7 +97,7 @@ where
     where
         S: Into<String>,
     {
-        prefix.map(|p| p.into()).unwrap_or("banner".into()) + ":features"
+        prefix.map(|p| p.into()).unwrap_or("masquerade".into()) + ":flags"
     }
 
     fn conn(&self) -> impl Future<Item = PairedConnection, Error = Error> {
@@ -104,19 +120,18 @@ where
         [self.key.as_str(), ":", path.as_ref(), "/", key].concat()
     }
 
-    pub fn notify(&self, path: &P) -> impl Future<Item = (), Error = Error> {
-        let key = [path.as_ref(), ALL_CACHE].concat();
+    pub fn notify(&self, path: &P, key: &str) -> impl Future<Item = (), Error = Error> {
+        let all_key = [path.as_ref(), ALL_CACHE].concat();
+        let item_key = self.full_key(path, key);
         let topic = self.topic.clone();
 
-        debug!("Creating notification for: {} {}", topic, key);
+        debug!("Creating notification for: {} {}", topic, item_key);
+        debug!("Creating notification for: {} {}", topic, all_key);
 
-        self.conn().and_then(|conn| {
-            conn.send::<i32>(resp_array!["PUBLISH", &topic, &key])
-                .map(move |_| {
-                    debug!("Sent notification: {} {}", topic, key);
-                    ()
-                })
-                .map_err(fail)
+        self.conn().and_then(move |conn| {
+            send_notification(&conn, topic.as_ref(), &all_key)
+                .join(send_notification(&conn, topic.as_ref(), &item_key))
+                .map(|_| ())
         })
     }
 
@@ -132,11 +147,11 @@ where
         debug!("Perform get: {}", full_key);
 
         match cache.get(full_key.as_str()) {
-            Ok(Some(item)) => {
+            Some(item) => {
                 debug!("Cache hit: {}", full_key);
                 Either::A(future::ok(Some(item)))
             }
-            Ok(None) => {
+            None => {
                 debug!("Cache miss: {}", full_key);
                 Either::B(self.conn().and_then(move |conn| {
                     get_raw(&conn, &full_path, key.as_ref()).map(move |resp| {
@@ -149,7 +164,6 @@ where
                     })
                 }))
             }
-            Err(err) => Either::A(future::err(err)),
         }
     }
 
@@ -161,18 +175,19 @@ where
         debug!("Perform get all: {}", key);
 
         match all_cache.get(key.as_str()) {
-            Ok(Some(map)) => {
+            Some(map) => {
                 debug!("Cache hit: {}", key);
                 Either::A(future::ok(map))
             }
-            _ => {
+            None => {
                 debug!("Cache miss: {}", key);
                 Either::B(self.conn().and_then(move |conn| {
-                    conn.send::<HashMap<String, T>>(resp_array!["HGETALL", full_path])
+                    conn.send::<RedisHashMap<String, T>>(resp_array!["HGETALL", full_path])
                         .map(move |resp| {
-                            debug!("Getall found {} elements", resp.len());
-                            let _ = all_cache.insert(key.as_str(), &resp);
-                            resp
+                            let map = resp.into_hashmap();
+                            debug!("Getall found {} elements", map.len());
+                            let _ = all_cache.insert(key.as_str(), &map);
+                            map
                         })
                         .map_err(fail)
                 }))
@@ -189,7 +204,7 @@ where
         let full_path = self.full_path(&path);
         let all_cache = self.all_cache.clone();
         let cache = self.cache.clone();
-        let notification = self.notify(&path);
+        let notification = self.notify(&path, &key);
 
         debug!("Perform delete: {}", full_key);
 
@@ -221,7 +236,7 @@ where
         let item = item.to_owned();
         let all_cache = self.all_cache.clone();
         let cache = self.cache.clone();
-        let notification = self.notify(&path);
+        let notification = self.notify(&path, &key);
 
         let ser: RespValue = item.clone().into();
 
@@ -237,7 +252,7 @@ where
                     .map_err(fail)
                     .and_then(move |_| {
                         let _ = all_cache.clear();
-                        let _ = cache.insert(full_key, &item);
+                        let _ = cache.remove(full_key.as_str());
                         notification.map(|_| resp)
                     })
             })
@@ -255,60 +270,27 @@ where
     }
 
     pub fn updater(&self) -> impl Future<Item = (), Error = ()> {
+        let cache = self.cache.clone();
         let all_cache = self.all_cache.clone();
 
         self.stream_conn().map_err(|_| ()).and_then(move |stream| {
             stream
                 .for_each(move |msg| {
-                    info!("Update for {:?}", msg);
-                    let _ = all_cache.clear();
-                    info!("Cleared cache for {:?}", msg);
+                    let key = match msg {
+                        RespValue::BulkString(ref bytes) => String::from_utf8_lossy(bytes),
+                        RespValue::SimpleString(ref string) => Cow::Borrowed(string.as_str()),
+                        _ => Cow::Borrowed(""),
+                    };
+
+                    info!("Update for {:?}", key);
+                    let _ = all_cache.remove(key.as_ref());
+                    let _ = cache.remove(key.as_ref());
+                    info!("Cleared cache for {:?}", key);
                     future::ok(())
                 })
                 .map_err(|_| ())
         })
     }
-}
-
-macro_rules! redis_conversions {
-    ($struct:ident) => {
-        impl FromResp for $struct {
-            fn from_resp_int(resp: RespValue) -> Result<$struct, RedisAsyncError> {
-                match resp {
-                    RespValue::BulkString(ref bytes) => {
-                        serde_json::from_str(&String::from_utf8_lossy(bytes)).or_else(|_| {
-                            Err(redis_async::error::resp(
-                                "Cannot convert into a $struct",
-                                redis_async::resp::RespValue::BulkString(bytes.to_owned()),
-                            ))
-                        })
-                    }
-                    RespValue::SimpleString(ref string) => serde_json::from_str(string.as_str())
-                        .or_else(|_| {
-                            Err(redis_async::error::resp(
-                                "Cannot convert into a $struct",
-                                resp.to_owned(),
-                            ))
-                        }),
-                    _ => Err(redis_async::error::resp(
-                        "Cannot convert into a $struct",
-                        resp,
-                    )),
-                }
-            }
-        }
-
-        impl Into<RespValue> for $struct {
-            fn into(self: Self) -> RespValue {
-                let res = serde_json::to_string(&self);
-
-                match res {
-                    Ok(ser) => RespValue::BulkString(ser.as_bytes().to_vec()),
-                    Err(_) => RespValue::BulkString("fail".as_bytes().to_vec()),
-                }
-            }
-        }
-    };
 }
 
 #[cfg(test)]
@@ -352,11 +334,16 @@ mod tests {
     where
         F: Future<Error = Error>,
     {
-        Runtime::new()
-            .unwrap()
-            .block_on(to_run)
+        run_to_result(to_run)
             .map_err(|err| println!("Failed to run test future: {:?}", err))
             .unwrap()
+    }
+
+    fn run_to_result<F>(to_run: F) -> Result<F::Item, F::Error>
+    where
+        F: Future<Error = Error>,
+    {
+        Runtime::new().unwrap().block_on(to_run)
     }
 
     #[test]
@@ -478,7 +465,7 @@ mod tests {
 
         let notifier = Interval::new_interval(Duration::new(1, 0))
             .map_err(|_| ())
-            .for_each(move |_| data.notify(&path()).map_err(|_| ()))
+            .for_each(move |_| data.notify(&path(), "f1").map_err(|_| ()))
             .map(|_| ());
 
         runner.spawn(notifier);
@@ -486,5 +473,29 @@ mod tests {
         let res = runner.block_on(sub).unwrap();
 
         assert_eq!((), res);
+    }
+
+    fn check_for_empty_key_error<F, T>(to_run: F)
+    where
+        F: Future<Item = T, Error = Error>,
+        T: Debug,
+    {
+        let result = run_to_result(to_run);
+
+        assert!(match result.unwrap_err() {
+            Error::EmptyKey => true,
+            _ => false,
+        });
+    }
+
+    #[test]
+    fn test_empty_key_failures() {
+        let data = dataset("empty_keys", 0);
+
+        check_for_empty_key_error(data.get(path(), ""));
+
+        check_for_empty_key_error(data.upsert(path(), "", &f("f1", true)));
+
+        check_for_empty_key_error(data.delete(path(), ""));
     }
 }

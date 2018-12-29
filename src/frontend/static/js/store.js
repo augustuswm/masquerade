@@ -173,6 +173,7 @@ const mapStateToProps = state => {
     refresh: state.refresh,
     apiKey: state.apiKey,
     apiSecret: state.apiSecret,
+    token: state.token,
     pathMenuOpen: state.pathMenuOpen,
     filterText: state.filterText,
     appCreateModalOpen: state.appCreateModalOpen,
