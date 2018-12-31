@@ -1,50 +1,5 @@
 version: 2.0
 jobs:
-  mem-build:
-    docker:
-      - image: clux/muslrust
-    steps:
-      - checkout
-      - run:
-          name: Test
-          command: cargo test --features mem-backend
-      - run:
-          name: Build
-          command: |
-            cargo build --release --features mem-backend
-            echo $CIRCLE_SHA1 > .circle-sha
-      - run:
-          name: Install Node
-          command: |
-            curl -sL https://deb.nodesource.com/setup_10.x | bash -
-            apt-get install -y nodejs
-      - run:
-          name: Build Frontend
-          command: |
-            npm install
-            npm run build
-      - save_cache:
-          key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-mem
-          paths:
-            - ~/project/www
-            - ~/project/target/x86_64-unknown-linux-musl/release
-            - ~/project/Dockerfile
-
-  mem-docker:
-    docker:
-      - image: docker:latest
-    steps:
-      - run: echo $CIRCLE_SHA1 > .circle-sha
-      - restore_cache:
-          key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-mem
-      - setup_remote_docker
-      - run:
-          command: |
-            docker build -t masquerade .
-            docker tag masquerade:latest augustuswm/masquerade:mem
-            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-            docker push augustuswm/masquerade:mem
-
   redis-build:
     docker:
       - image: clux/muslrust
@@ -83,7 +38,7 @@ jobs:
             npm install
             npm run build
       - save_cache:
-          key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-redis
+          key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}
           paths:
             - ~/project/www
             - ~/project/target/x86_64-unknown-linux-musl/release
@@ -95,27 +50,19 @@ jobs:
     steps:
       - run: echo $CIRCLE_SHA1 > .circle-sha
       - restore_cache:
-          key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}-redis
+          key: build-{{ .Branch }}-{{ checksum ".circle-sha" }}
       - setup_remote_docker
       - run:
           command: |
             docker build -t masquerade .
-            docker tag masquerade:latest augustuswm/masquerade:redis
+            docker tag masquerade:latest augustuswm/masquerade
             echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-            docker push augustuswm/masquerade:redis
+            docker push augustuswm/masquerade
 
 workflows:
   version: 2
   build:
     jobs:
-      - mem-build
-      - mem-docker:
-          requires:
-            - mem-build
-          filters:
-            branches:
-              only:
-                - master
       - redis-build
       - redis-docker:
           requires:
